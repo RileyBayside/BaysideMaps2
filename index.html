@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mowing Map – Search by MowingID & CutsPerYear</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+  <header>
+    <h1>Mowing Map</h1>
+    <div class="controls">
+      <div class="control">
+        <label for="searchInput">Search MowingID</label>
+        <input id="searchInput" type="text" placeholder="e.g. M0312" />
+        <button id="searchBtn" title="Search by MowingID">Search</button>
+      </div>
+      <div class="control">
+        <label for="cutsFilter">Cuts Per Year</label>
+        <select id="cutsFilter">
+          <option value="ALL" selected>All</option>
+        </select>
+        <button id="resetBtn" title="Reset filters">Reset</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <div id="legend" class="legend">
+    <h3>Cuts Per Year</h3>
+    <ul id="legendList"></ul>
+  </div>
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <script>
+    window.MAPBOX_TOKEN = "pk.eyJ1IjoicmlsZXliYXlzaWRlIiwiYSI6ImNtZmQ0eGhyZjA1ZjMyb3BzMjlxbnlybHIifQ.7BgSVYe8ZBb0LxF2Y3dvTw";
+  </script>
+  <script src="js/app.js"></script>
+</body>
+</html>
