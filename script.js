@@ -159,3 +159,32 @@ map.on('load', () => {
   turfScript.onload = () => addDataLayers();
   document.head.appendChild(turfScript);
 });
+// Lines (LineString + MultiLineString)
+map.addLayer({
+  id: 'mowing-lines',
+  type: 'line',
+  source: 'mowing-source',
+  filter: ['match', ['geometry-type'], ['LineString', 'MultiLineString'], true, false],
+  paint: {
+    'line-color': '#10b981',
+    'line-width': [
+      'interpolate', ['linear'], ['zoom'],
+      5, 1.2,
+      12, 2.5,
+      16, 4
+    ]
+  }
+});
+
+// Polygons (Polygon + MultiPolygon)
+map.addLayer({
+  id: 'mowing-polys',
+  type: 'fill',
+  source: 'mowing-source',
+  filter: ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false],
+  paint: {
+    'fill-color': '#ef4444',
+    'fill-opacity': 0.35,
+    'fill-outline-color': '#b91c1c'
+  }
+});
