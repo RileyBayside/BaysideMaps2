@@ -1,0 +1,13 @@
+/* Basic styling for the map and search UI */
+html, body, #map { height: 100%; width: 100%; }
+#map { position: absolute; top: 50px; bottom: 0; left: 0; right: 0; }
+#topbar { position: absolute; top: 6px; left: 12px; right: 12px; height: 38px; z-index: 1000; display:flex; gap:10px; align-items:center; }
+#searchBox { position: relative; width: 420px; }
+#searchInput { width: 100%; padding: 8px 10px; border-radius:6px; border:1px solid rgba(0,0,0,0.2); font-size:14px; box-shadow:0 1px 2px rgba(0,0,0,0.1); }
+.suggestions { position: absolute; top: 38px; left: 0; right: 0; background:white; border-radius:6px; box-shadow:0 6px 20px rgba(0,0,0,0.12); display:none; max-height:260px; overflow:auto; }
+.suggestion { padding:8px 10px; cursor:pointer; border-bottom:1px solid #eee; font-size:13px; }
+.suggestion:hover { background:#f0f6ff; }
+#legend { background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); font-size:13px; }
+.popup table { border-collapse:collapse; width:100%; }
+.popup th { text-align:left; padding:4px 6px; font-weight:600; width:36%; vertical-align:top; }
+.popup td { padding:4px 6px; word-break:break-all; }
