@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GeoJSON Data on Google Maps</title>
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        #search-container {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        #search-input {
+            width: 200px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search for MowingID (e.g., M0692)">
+        <button onclick="searchLocation()">Search</button>
+    </div>
+    <div id="map"></div>
+    <script>
+        let map;
+        let infoWindow;
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 10,
+                center: { lat: -27.6, lng: 153.2 }
+            });
+
+            infoWindow = new google.maps.InfoWindow();
+
+            // Load the GeoJSON file
+            map.data.loadGeoJson('data.geojson');
+
+            // Set the style for the GeoJSON features
+            map.data.setStyle(feature => {
+                let color = 'gray'; // Default color
+                const cutsPerYear = feature.getProperty('CutsPerYear');
+                if (cutsPerYear === 18) {
+                    color = 'blue';
+                } else if (cutsPerYear === 15) {
+                    color = 'green';
+                }
+
+                return {
+                    fillColor: color,
+                    strokeWeight: 1,
+                    fillOpacity: 0.7
+                };
+            });
+
+            // Add a click listener for each feature to show the MowingID
+            map.data.addListener('click', function(event) {
+                const mowingID = event.feature.getProperty('MowingID');
+                const name = event.feature.getProperty('name');
+
+                let contentString = '<h2>' + name + '</h2>' +
+                                    '<p><b>Mowing ID:</b> ' + mowingID + '</p>';
+
+                // Position the info window on the clicked feature
+                let anchor;
+                const geometry = event.feature.getGeometry();
+                if (geometry.getType() === 'Polygon') {
+                    // Find a point on the polygon to anchor the info window
+                    anchor = new google.maps.LatLng(geometry.getAt(0).getAt(0));
+                } else if (geometry.getType() === 'MultiPolygon') {
+                    // Use the first point of the first polygon for MultiPolygon
+                     anchor = new google.maps.LatLng(geometry.getAt(0).getAt(0).getAt(0));
+                } else {
+                    anchor = event.latLng;
+                }
+
+
+                infoWindow.setContent(contentString);
+                infoWindow.setPosition(anchor);
+                infoWindow.setOptions({pixelOffset: new google.maps.Size(0,-30)});
+                infoWindow.open(map);
+            });
+        }
+
+        function searchLocation() {
+            const searchQuery = document.getElementById('search-input').value.toUpperCase();
+            map.data.forEach(feature => {
+                const mowingID = feature.getProperty('MowingID');
+                if (mowingID && mowingID.toUpperCase() === searchQuery) {
+                    // Get the bounding box of the feature and zoom to it
+                    const geometry = feature.getGeometry();
+                    const bounds = new google.maps.LatLngBounds();
+                    processPoints(geometry, bounds.extend, bounds);
+                    map.fitBounds(bounds);
+
+                     // Also open the infowindow
+                    const name = feature.getProperty('name');
+                    let contentString = '<h2>' + name + '</h2>' +
+                                    '<p><b>Mowing ID:</b> ' + mowingID + '</p>';
+                    infoWindow.setContent(contentString);
+
+                    let anchor;
+                    if (geometry.getType() === 'Polygon') {
+                         anchor = new google.maps.LatLng(geometry.getAt(0).getAt(0));
+                    } else if (geometry.getType() === 'MultiPolygon') {
+                         anchor = new google.maps.LatLng(geometry.getAt(0).getAt(0).getAt(0));
+                    }
+
+                    infoWindow.setPosition(anchor);
+                    infoWindow.open(map);
+                }
+            });
+        }
+
+        // Helper function to process geometries and extend the bounds
+        function processPoints(geometry, callback, thisArg) {
+          if (geometry instanceof google.maps.LatLng) {
+            callback.call(thisArg, geometry);
+          } else if (geometry instanceof google.maps.Data.Point) {
+            callback.call(thisArg, geometry.get());
+          } else {
+            geometry.getArray().forEach(function(g) {
+              processPoints(g, callback, thisArg);
+            });
+          }
+        }
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAEj4G1pfsw0eKoAHUfrDLesWf7XDV-9KE&callback=initMap">
+    </script>
+</body>
+</html>
