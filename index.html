@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mowing and Vegetation Management Map</title>
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    #search-container {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      background-color: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="search-container">
+    <input type="text" id="searchInput" placeholder="Enter MowingID (e.g., M0123)">
+    <button onclick="searchLocation()">Search</button>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    let map;
+    let geojsonData;
+
+    function initMap() {
+      // Initialize the map centered on a default location
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: -27.5, lng: 153.2 },
+        zoom: 10
+      });
+
+      // Load the GeoJSON file
+      fetch('2425_Mowing_and_Vegetation_Management_Services_MowingVIEW_2137226493147457152.geojson')
+        .then(response => response.json())
+        .then(data => {
+          geojsonData = data;
+          map.data.addGeoJson(geojsonData);
+
+          // Style the GeoJSON features based on 'CutsPerYear'
+          map.data.setStyle(feature => {
+            let color = 'gray'; // Default color
+            const cutsPerYear = feature.getProperty('CutsPerYear');
+            if (cutsPerYear === 18) {
+              color = 'blue';
+            } else if (cutsPerYear === 15) {
+              color = 'green';
+            }
+            return {
+              fillColor: color,
+              strokeWeight: 1
+            };
+          });
+
+          // Add labels with 'MowingID' to each feature
+          map.data.forEach(feature => {
+            const mowingID = feature.getProperty('MowingID');
+            const geometry = feature.getGeometry();
+            let center;
+
+            // Find the center of the polygon or multipolygon
+            if (geometry.getType() === 'Polygon') {
+                const bounds = new google.maps.LatLngBounds();
+                geometry.getArray().forEach(path => {
+                    path.getArray().forEach(latLng => {
+                        bounds.extend(latLng);
+                    });
+                });
+                center = bounds.getCenter();
+            } else if (geometry.getType() === 'MultiPolygon') {
+                const bounds = new google.maps.LatLngBounds();
+                geometry.getArray().forEach(polygon => {
+                    polygon.getArray().forEach(path => {
+                        path.getArray().forEach(latLng => {
+                            bounds.extend(latLng);
+                        });
+                    });
+                });
+                center = bounds.getCenter();
+            }
+
+
+            if (center) {
+              new google.maps.Marker({
+                position: center,
+                map: map,
+                label: {
+                    text: mowingID,
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                },
+                icon: {
+                    path: 'M 0,0', // Invisible icon path
+                }
+              });
+            }
+          });
+        });
+    }
+
+    function searchLocation() {
+      const searchTerm = document.getElementById('searchInput').value.toUpperCase();
+      let found = false;
+
+      if (!searchTerm) {
+        alert("Please enter a MowingID to search.");
+        return;
+      }
+
+      map.data.forEach(feature => {
+        const mowingID = feature.getProperty('MowingID');
+        if (mowingID && mowingID.toUpperCase().includes(searchTerm)) {
+          const geometry = feature.getGeometry();
+          const bounds = new google.maps.LatLngBounds();
+
+          // Process Polygon
+          if (geometry.getType() === 'Polygon') {
+              geometry.getArray().forEach(path => {
+                  path.getArray().forEach(latLng => {
+                      bounds.extend(latLng);
+                  });
+              });
+          }
+          // Process MultiPolygon
+          else if (geometry.getType() === 'MultiPolygon') {
+              geometry.getArray().forEach(polygon => {
+                  polygon.getArray().forEach(path => {
+                      path.getArray().forEach(latLng => {
+                          bounds.extend(latLng);
+                      });
+                  });
+              });
+          }
+
+
+          map.fitBounds(bounds);
+          found = true;
+          return; // Exit the loop once a match is found
+        }
+      });
+
+      if (!found) {
+        alert(`Location with MowingID containing "${searchTerm}" not found.`);
+      }
+    }
+  </script>
+
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAEj4G1pfsw0eKoAHUfrDLesWf7XDV-9KE&callback=initMap">
+  </script>
+
+</body>
+</html>
