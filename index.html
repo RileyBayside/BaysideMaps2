@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GeoJSON Data on Google Maps</title>
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        function initMap() {
+            const map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 10,
+                center: { lat: -27.6, lng: 153.2 }
+            });
+
+            map.data.loadGeoJson('data.geojson');
+        }
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAEj4G1pfsw0eKoAHUfrDLesWf7XDV-9KE&callback=initMap">
+        </script>
+</body>
+</html>
