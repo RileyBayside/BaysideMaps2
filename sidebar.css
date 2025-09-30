@@ -1,0 +1,33 @@
+
+#sidebar {
+  position: absolute;
+  top: 110px; /* safely below search/zoom controls */
+  left: 0;
+  width: 300px;
+  height: calc(100% - 110px);
+  background: white;
+  overflow-y: auto;
+  z-index: 1000;
+  border-right: 1px solid #ccc;
+  padding: 10px;
+  transition: transform 0.3s ease;
+}
+#sidebar.collapsed { transform: translateX(-100%); }
+#sidebar-toggle {
+  position: absolute;
+  top: 10px;
+  left: 310px;
+  z-index: 1100;
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.zone h3 { margin: 5px 0; cursor: pointer; background: #eee; padding: 6px; border-radius: 4px; }
+.hidden { display: none; }
+.park-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.park-item input[type="text"] { flex: 1; padding: 4px 6px; }
+#admin-tools { display: none; margin-top: 16px; border-top: 1px solid #ddd; padding-top: 10px; }
+#admin-tools button { display: block; width: 100%; margin: 6px 0; padding: 8px; }

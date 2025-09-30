@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Parks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="logo.png" type="image/png">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+
+<button id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+<div id="sidebar">
+  <div id="sidebar-content"></div>
+  <button onclick="adminLogin()">Admin Login</button>
+  <div id="admin-tools">
+    <button onclick="exportPDF()">Export to PDF</button>
+    <button onclick="clearUserData()">Clear All User Data</button>
+    <button onclick="exportData()">Export Data</button>
+    <button onclick="showToday()">Show Completed Today</button>
+  </div>
+</div>
+<link rel="stylesheet" href="sidebar.css">
+<script src="sidebar.js"></script>
+
+</body>
+</html>
