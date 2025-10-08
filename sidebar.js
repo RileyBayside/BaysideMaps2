@@ -1,8 +1,48 @@
 
+// === Operator helper: reads login name from bayside.auth or legacy keys ===
+function __getOperatorName(){
+  try{
+    const raw = localStorage.getItem('bayside.auth');
+    if (raw){
+      const obj = JSON.parse(raw);
+      if (obj && obj.name && (!obj.exp || Date.now() < +obj.exp)) return (''+obj.name).trim();
+    }
+  }catch(e){}
+  for (const k of ['operator','user','username']){
+    const v = localStorage.getItem(k);
+    if (v && v.trim()) return v.trim();
+  }
+  return 'Unknown';
+}
+
+
+// Inject a visible Operator label directly under the 'PDF Report for Bayside' button
+document.addEventListener('DOMContentLoaded', function(){
+  var btns = document.querySelectorAll('button[onclick="exportPDFBayside()"]');
+  if (btns && btns.length){
+    var btn = btns[0];
+    var next = btn.nextElementSibling;
+    var already = next && /Operator:/i.test(next.textContent||'');
+    if (!already){
+      var div = document.createElement('div');
+      div.className = 'small';
+      div.style.marginTop = '4px';
+      var name = __getOperatorName();
+      div.textContent = 'Operator: ' + name;
+      btn.insertAdjacentElement('afterend', div);
+    }
+  }
+});
+
+
 (function() {
   const ADMIN_PASSWORD = "Fishing101!";
   const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
   const PARK_DATA_KEY = "parkData";
+  // Identify page for per-page checkbox storage
+  const PAGE_ID = location.pathname.toLowerCase().includes('parkssnipping') ? 'snip' : 'parks';
+  const CHECK_KEY = `parks_check_${PAGE_ID}`;
+
 
   // Zones defined as newline-separated strings -> arrays (avoids comma/quote errors)
   const zoneStrings = {
@@ -532,6 +572,11 @@ M0753`
 
   // Storage
   let parkData = JSON.parse(localStorage.getItem(PARK_DATA_KEY) || "{}");
+  // Per-page checkbox/time storage (separate from notes)
+  let checkData = {};
+  try { checkData = JSON.parse(localStorage.getItem(CHECK_KEY) || '{}'); } catch(e) { checkData = {}; }
+  function saveCheckData() { localStorage.setItem(CHECK_KEY, JSON.stringify(checkData)); }
+
   let nameIndex = {}; // MowingID -> Name
 
   function saveData() {
@@ -603,12 +648,16 @@ M0753`
 
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
-        checkbox.checked = parkData[parkId]?.done || false;
+        checkbox.checked = (checkData[parkId]?.done) || false;
         checkbox.onchange = () => {
-          parkData[parkId] = parkData[parkId] || {};
-          parkData[parkId].done = checkbox.checked;
-          parkData[parkId].time = new Date().toISOString();
-          saveData();
+          checkData[parkId] = checkData[parkId] || {};
+                    if (PAGE_ID === 'parks') {
+            const u = (localStorage.getItem('bs_user') || '').trim() || 'Unknown';
+            checkData[parkId].operator = u;
+          }
+checkData[parkId].done = checkbox.checked;
+          checkData[parkId].time = new Date().toISOString();
+          saveCheckData();
         };
 
         row.appendChild(checkbox);
@@ -679,7 +728,12 @@ M0753`
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sb.classList.contains("collapsed"));
   };
 
-  window.addEventListener("load", function() {
+  window.addEventListener("load", function () {
+  try {
+    const tools = document.getElementById("admin-tools");
+    if (tools) tools.style.display = (localStorage.getItem("bs_admin")==="true") ? "block" : "none";
+  } catch(e) {}
+
     const sb = document.getElementById("sidebar");
     if (sb && localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true") sb.classList.add("collapsed");
     // Build name index after map + layers load
@@ -689,3 +743,294 @@ M0753`
     }, 1200);
   });
 })();
+
+// ---- Helpers to access stored data in global scope ----
+function __getParkData() {
+  try {
+    const notes = JSON.parse(localStorage.getItem('parkData') || '{}');
+    const pageId = location.pathname.toLowerCase().includes('parkssnipping') ? 'snip' : 'parks';
+    const checks = JSON.parse(localStorage.getItem(`parks_check_${pageId}`) || '{}');
+    const merged = {};
+    const ids = new Set([...Object.keys(notes), ...Object.keys(checks)]);
+    ids.forEach(id => {
+      merged[id] = {
+        note: (notes[id] && notes[id].note) || "",
+        done: (checks[id] && checks[id].done) || false,
+        time: (checks[id] && checks[id].time) || null,
+        operator: (checks[id] && checks[id].operator) || ""
+      };
+    });
+    return merged;
+  } catch(e) { return {}; }
+}
+
+
+
+// Expand / Collapse all zones
+function toggleAllZones() {
+  const button = document.getElementById("toggle-all");
+  const allLists = document.querySelectorAll(".zone > div");
+
+  // Check if any list is currently hidden
+  const anyHidden = Array.from(allLists).some(list => list.classList.contains("hidden"));
+
+  if (anyHidden) {
+    // Expand all
+    allLists.forEach(list => list.classList.remove("hidden"));
+    button.innerText = "Collapse All";
+  } else {
+    // Collapse all
+    allLists.forEach(list => list.classList.add("hidden"));
+    button.innerText = "Expand All";
+  }
+}
+
+// Attach listener once page loads
+window.addEventListener("load", function() {
+  const button = document.getElementById("toggle-all");
+  if (button) {
+    button.addEventListener("click", toggleAllZones);
+  }
+});
+
+
+
+// Sidebar expand/collapse toggle
+function toggleSidebar() {
+  const sb = document.getElementById("sidebar");
+  const btn = document.getElementById("sidebar-toggle");
+  if (!sb || !btn) return;
+
+  sb.classList.toggle("collapsed");
+
+  // Update button text depending on state
+  if (sb.classList.contains("collapsed")) {
+    btn.innerText = "Expand Sidebar";
+  } else {
+    btn.innerText = "Collapse Sidebar";
+  }
+
+  // Remember state
+  localStorage.setItem("sidebarCollapsed", sb.classList.contains("collapsed"));
+}
+
+// Attach listener on page load (sidebar toggle)
+window.addEventListener("load", function () {
+  const sb = document.getElementById("sidebar");
+  const btn = document.getElementById("sidebar-toggle");
+
+  if (btn) btn.addEventListener("click", toggleSidebar);
+
+  // Restore saved state
+  if (sb && localStorage.getItem("sidebarCollapsed") === "true") {
+    sb.classList.add("collapsed");
+    if (btn) btn.innerText = "Expand Sidebar";
+  }
+});
+
+
+
+// ---------------------------
+// Admin Utility Functions
+// ---------------------------
+
+// Export sidebar data to a real PDF
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // --- Add Logo ---
+  const img = new Image();
+  img.src = "logo.png"; // Ensure logo.png is in the same folder as index.html
+  img.onload = function () {
+    const imgWidth = 50;  // adjust size if needed
+    const imgHeight = 20;
+    const x = (pageWidth - imgWidth) / 2; // center horizontally
+    doc.addImage(img, "PNG", x, 10, imgWidth, imgHeight);
+
+    // --- Title ---
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    const titleStr = `Parks Report ${formatToAEST(new Date().toISOString())}`;
+    doc.text(titleStr, pageWidth / 2, 40, { align: 'center' });
+
+    // --- Table Header ---
+    let y = 55;
+    const col1 = pageWidth * 0.2; // Park Number
+    const col2 = pageWidth * 0.45; // Date Completed
+    const col3 = pageWidth * 0.7; // Notes
+
+    doc.setFontSize(12);
+    doc.text("Park Number", col1, y, { align: "center" });
+    doc.text("Date Completed", col2, y, { align: "center" });
+    doc.text("Notes", col3, y, { align: "center" });
+
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+
+    // --- Helper for date formatting to AEST ---
+    function formatToAEST(isoString) {
+      if (!isoString) return "N/A";
+      try {
+        const date = new Date(isoString);
+        const aestDate = new Date(date.toLocaleString("en-US", { timeZone: "Australia/Brisbane" }));
+        const day = String(aestDate.getDate()).padStart(2, "0");
+        const month = String(aestDate.getMonth() + 1).padStart(2, "0");
+        const year = aestDate.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch {
+        return "N/A";
+      }
+    }
+
+    // --- Data Rows ---
+    const parks = __getParkData();
+    const keys = Object.keys(parks);
+
+    if (keys.length === 0) {
+      doc.text("No data available.", pageWidth / 2, y, { align: "center" });
+    } else {
+      keys.forEach(id => {
+        const dateFormatted = formatToAEST(parks[id].time);
+        const note = parks[id].note || "";
+
+        doc.text(id, col1, y, { align: "center" });
+        doc.text(dateFormatted, col2, y, { align: "center" });
+        doc.text(note, col3, y, { maxWidth: 60, align: "center" });
+
+        y += 7;
+        if (y > 280) { // page overflow
+          doc.addPage();
+          y = 20;
+        }
+      });
+    }
+
+    doc.save("parks_report.pdf");
+  };
+}
+
+// Clear all user data
+function clearUserData() {
+  if (confirm("Are you sure you want to clear all saved data?")) {
+    localStorage.setItem("parkData", JSON.stringify({}));
+    localStorage.removeItem("parkData");
+    try { const pageId = location.pathname.toLowerCase().includes('parkssnipping') ? 'snip' : 'parks'; localStorage.removeItem(`parks_check_${pageId}`); } catch(e) {}
+    alert("All user data cleared.");
+    location.reload();
+  }
+}
+
+// Show parks completed today
+function showToday() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let completedToday = [];
+
+  Object.keys(__getParkData()).forEach(id => {
+    if (__getParkData()[id].done && __getParkData()[id].time && __getParkData()[id].time.startsWith(today)) {
+      completedToday.push(id);
+    }
+  });
+
+  if (completedToday.length === 0) {
+    alert("No parks completed today.");
+  } else {
+    alert("Completed Today:\n" + completedToday.join(", "));
+  }
+}
+
+// Two-button export wrappers
+function exportPDFCouncil() { if (typeof exportPDF === 'function') exportPDF(); }
+function exportPDFBayside() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // --- Add Logo ---
+  const img = new Image();
+  img.src = "logo.png"; // Ensure logo.png is in the same folder as index.html
+  img.onload = function () {
+    const imgWidth = 50;  // adjust size if needed
+    const imgHeight = 20;
+    const x = (pageWidth - imgWidth) / 2; // center horizontally
+    doc.addImage(img, "PNG", x, 10, imgWidth, imgHeight);
+
+    // --- Title ---
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    const titleStr = `Parks Report ${formatToAEST(new Date().toISOString())}`;
+    doc.text(titleStr, pageWidth / 2, 40, { align: 'center' });
+
+    // --- Table Header ---
+    let y = 55;
+    const col1 = pageWidth * 0.2; // Park Number
+    const col2 = pageWidth * 0.45; // Date Completed
+    const col3 = pageWidth * 0.63; // Notes
+    const col4 = pageWidth * 0.85; // Operator
+
+    doc.setFontSize(12);
+    doc.text("Park Number", col1, y, { align: "center" });
+    doc.text("Date Completed", col2, y, { align: "center" });
+    doc.text("Notes", col3, y, { align: "center" });
+    doc.text("Operator", col4, y, { align: "center" });
+
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+
+    // --- Helper for date formatting to AEST ---
+    function formatToAEST(isoString) {
+      if (!isoString) return "N/A";
+      try {
+        const date = new Date(isoString);
+        const aestDate = new Date(date.toLocaleString("en-US", { timeZone: "Australia/Brisbane" }));
+        const day = String(aestDate.getDate()).padStart(2, "0");
+        const month = String(aestDate.getMonth() + 1).padStart(2, "0");
+        const year = aestDate.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch {
+        return "N/A";
+      }
+    }
+
+    // --- Data Rows ---
+    const parks = __getParkData();
+    const keys = Object.keys(parks);
+
+    if (keys.length === 0) {
+      doc.text("No data available.", pageWidth / 2, y, { align: "center" });
+    } else {
+      keys.forEach(id => {
+        const dateFormatted = formatToAEST(parks[id].time);
+        const note = parks[id].note || "";
+
+        doc.text(id, col1, y, { align: "center" });
+        doc.text(dateFormatted, col2, y, { align: "center" });
+        doc.text(note, col3, y, { maxWidth: 60, align: "center" });
+        const operator = __getOperatorName();
+        doc.text(operator, col4, y, { align: "center" });
+
+        y += 7;
+        if (y > 280) { // page overflow
+          doc.addPage();
+          y = 20;
+        }
+      });
+    }
+
+    doc.save("parks_report_bayside.pdf");
+  };
+}
+
+function adminLogin(){
+  const pwd = prompt('Enter admin password:');
+  if (pwd === ADMIN_PASSWORD) {
+    localStorage.setItem('bs_admin','true');
+    const tools = document.getElementById('admin-tools');
+    if (tools) tools.style.display = 'block';
+  } else { alert('Wrong password!'); }
+}

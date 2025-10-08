@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bayside — Sign in</title>
+  <link rel="icon" href="logo.png">
+  <script src="auth.js"></script>
+  <style>
+    html,body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#f3f4f6; }
+    .wrap { min-height:100%; display:flex; align-items:center; justify-content:center; padding:32px; }
+    .card { width:100%; max-width:420px; background:#fff; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.08); padding:28px; }
+    .logo { display:block; margin:0 auto 8px auto; height:64px; object-fit:contain; }
+    h1 { text-align:center; margin:8px 0 4px; font-size:22px; }
+    p.sub { text-align:center; margin:0 0 20px; color:#6b7280; font-size:14px; }
+    label { display:block; font-weight:600; margin:14px 0 6px; }
+    input[type="text"], input[type="password"] {
+      width:100%; box-sizing:border-box; padding:12px 14px; border:1px solid #e5e7eb; border-radius:10px; font-size:16px; outline:none;
+    }
+    input:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+    .btn { width:100%; margin-top:18px; padding:12px 16px; border:0; border-radius:12px; font-weight:700; font-size:16px; cursor:pointer; background:#111827; color:#fff; }
+    .err { margin-top:12px; color:#b91c1c; font-size:14px; min-height:18px; }
+    .footer { margin-top:18px; text-align:center; color:#9ca3af; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <img class="logo" src="logo.png" alt="Bayside Slashing logo">
+      <h1>Sign in</h1>
+      <p class="sub">Enter your name and PIN to continue</p>
+
+      <form id="loginForm" autocomplete="on">
+        <label for="name">Your name</label>
+        <input id="name" name="name" type="text" placeholder="e.g. Alex Smith" required autofocus />
+
+        <label for="pin">PIN</label>
+        <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4 digits" required />
+
+        <button class="btn" type="submit">Continue</button>
+        <div id="err" class="err"></div>
+      </form>
+
+      <div class="footer">For Bayside team members only.</div>
+    </div>
+  </div>
+
+  <script>
+    const ADMIN_PIN = "2455";   // unchanged
+    const DEFAULT_TTL_HOURS = 12; // keep same session length as before
+
+    const $ = (s) => document.querySelector(s);
+    const err = $("#err");
+    const form = $("#loginForm");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      err.textContent = "";
+
+      const name = ($("#name").value || "").trim();
+      const pin = ($("#pin").value || "").trim();
+
+      if (!name) { err.textContent = "Please enter your name."; return; }
+      if (pin !== ADMIN_PIN) { err.textContent = "Incorrect PIN."; return; }
+
+      if (!window.BaysideAuth) { err.textContent = "Auth script not loaded."; return; }
+      window.BaysideAuth.setAuth({ name, ttlHours: DEFAULT_TTL_HOURS });
+
+      const next = window.BaysideAuth.nextUrlAfterLogin("ParksMowing.html");
+      window.location.replace(next);
+    });
+
+    // If already authed, bounce to the intended page
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.BaysideAuth && BaysideAuth.isAuthed()) {
+        window.location.replace(BaysideAuth.nextUrlAfterLogin("ParksMowing.html"));
+      }
+    });
+  </script>
+</body>
+</html>

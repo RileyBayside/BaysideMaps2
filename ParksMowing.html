@@ -1,0 +1,53 @@
+
+    <script src="auth.js"></script>
+    <script>BaysideAuth.enforceGate();</script>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Parks Mowing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="logo.png" type="image/png">
+  
+  <!-- Core Styles -->
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  
+  <!-- Sidebar Styles -->
+  <link rel="stylesheet" href="sidebar.css">
+  
+  <style>
+    #map { height: 100vh; }
+  </style>
+</head>
+<body>
+  <!-- Sidebar toggle button -->
+  <button id="sidebar-toggle">☰</button>
+  
+  <!-- Sidebar container -->
+  <div id="sidebar">
+  <button id="toggle-all">Expand All</button>
+    <div id="sidebar-content"></div>
+      
+    <button onclick="adminLogin()">Admin Login</button>
+
+    <div id="admin-tools" style="display:none">
+    <button onclick="exportPDFCouncil()">PDF report for Council</button>
+    <button onclick="exportPDFBayside()">PDF Report for Bayside</button>
+    <button onclick="clearUserData()">Clear All User Data</button>
+    <button onclick="showToday()">Show Completed Today</button>
+  </div>
+  </div>
+
+  <!-- Map container -->
+  <div id="map"></div>
+
+  <!-- Core Scripts -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+  
+  <!-- Sidebar Script -->
+  <script src="sidebar.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</body>
+</html>

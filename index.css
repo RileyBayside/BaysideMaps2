@@ -1,0 +1,49 @@
+:root{
+  --red:#e11d2a;     /* logo red */
+  --black:#0f172a;   /* deep slate/black */
+  --card:#ffffff;
+  --bg:#f6f7f9;
+  --muted:#6b7280;
+  --ring: rgba(225,29,42,.15);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--black);}
+.header{
+  display:flex;align-items:center;gap:12px;padding:18px 22px;
+  background:linear-gradient(180deg,#fff 0%, #fff 65%, rgba(255,255,255,0.6) 100%);
+  border-bottom:1px solid #e5e7eb;
+}
+.header img{height:56px}
+.header .brand{font-weight:800; letter-spacing:.5px;}
+.container{max-width:1100px;margin:22px auto;padding:0 22px}
+.hero{
+  background:var(--card); border-radius:16px; padding:18px 18px; display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 8px 24px rgba(0,0,0,.06); border:1px solid #eef0f3;
+}
+.hero .left h1{margin:6px 0 2px; font-size:22px}
+.hero .left p{margin:0; color:var(--muted)}
+.hero .badge{
+  display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid #f3d1d4; background:#fff7f7; color:#991b1b; font-weight:600;
+}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; margin-top:18px}
+.card{
+  background:var(--card); border:1px solid #eef0f3; border-radius:16px; padding:18px; text-decoration:none; color:inherit;
+  box-shadow:0 8px 24px rgba(0,0,0,.05); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.card:hover{ transform: translateY(-2px); box-shadow:0 14px 28px rgba(0,0,0,.08); border-color:#eaeef2}
+.card h3{margin:4px 0 6px; font-size:18px}
+.card p{margin:0; color:var(--muted); font-size:14px}
+.card .pill{display:inline-block;margin-top:10px;padding:6px 10px;border-radius:999px;background:#fff;border:1px solid #ffe2e5;color:#b91c1c;font-weight:700;font-size:12px}
+.footer{margin:30px 0 24px; text-align:center; color:#9ca3af; font-size:12px}
+.quick{
+  display:flex; gap:10px; flex-wrap:wrap; margin-top:12px
+}
+.quick a{
+  display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px;
+  background:#fff; border:1px solid #e5e7eb; text-decoration:none; color:var(--black); font-weight:600;
+}
+.quick a:hover{ box-shadow:0 8px 18px rgba(0,0,0,.06) }
+.kicker{color:#9ca3af; font-weight:700; letter-spacing:.08em; font-size:12px}
+.name{font-weight:800}
+/* focus */
+a:focus, button:focus{outline:4px solid var(--ring); outline-offset:2px; border-radius:10px}

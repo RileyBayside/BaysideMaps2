@@ -1,3 +1,6 @@
+
+    <script src="auth.js"></script>
+    <script>BaysideAuth.enforceGate();</script>
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,9 +10,42 @@
   <link rel="icon" href="logo.png" type="image/png">
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    #map { height: 100vh; }
+    button.logout {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #dc3545;
+      color: white;
+      cursor: pointer;
+    }
+    button.logout:hover {
+      background: #b02a37;
+    }
+  </style>
+
+  <script>
+    // Redirect to login if not authenticated
+    if (localStorage.getItem("loggedIn") !== "true") {
+      window.location.href = "login.html";
+    }
+    function logout() {
+      localStorage.removeItem("loggedIn");
+      window.location.href = "login.html";
+    }
+  </script>
 </head>
 <body>
+  <!-- Logout Button -->
+  <button class="logout" onclick="logout()">Logout</button>
+
   <div id="map"></div>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="firebreaks.js"></script>
 </body>
