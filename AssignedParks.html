@@ -104,17 +104,11 @@
       background:#dcfce7; border-color:#bbf7d0; color:#065f46;
     }
 
-  /* ...existing styles... */
-  .bs-nav-btn{
-    appearance:none; border-radius:10px; border:1px solid #e2e8f0;
-    background:#1f2937; color:#fff; padding:6px 10px; font-weight:800;
-    cursor:pointer; margin-top:6px; margin-right:6px;
-  }
-
-    /* Banner above filtered list */
-    .assign-banner{
-      padding:8px 10px; margin:6px 0; border:1px solid #e2e8f0; background:#fff8f8;
-      color:#7f1d1d; border-radius:8px; font-weight:700;
+    /* Navigate button */
+    .bs-nav-btn{
+      appearance:none; border-radius:10px; border:1px solid #e2e8f0;
+      background:#1f2937; color:#fff; padding:6px 10px; font-weight:800;
+      cursor:pointer; margin-top:6px; margin-right:6px;
     }
 
     /* In-page Google navigation panel */
@@ -363,9 +357,9 @@
     }
 
     // ---------- injection & sync ----------
-    const siteButtons = new Map(); // siteId -> button
-    const siteInputs  = new Map(); // siteId -> notes input
-    const siteNavButtons = new Map(); // siteId -> navigate button
+    const siteButtons   = new Map(); // siteId -> "Mark done" button
+    const siteInputs    = new Map(); // siteId -> notes input
+    const siteNavButtons= new Map(); // siteId -> "Navigate" button
 
     // optimistic state (keep UI sticky until listeners refresh)
     const optimistic = new Map();  // siteId -> {status, t}
@@ -375,32 +369,6 @@
       btn.classList.toggle('done', !!isDone);
       btn.textContent = isDone ? 'Undo' : 'Mark done';
     };
-
-    // [NEW] Create/attach a "Navigate" button beside the notes input
-let nav = siteNavButtons.get(sid);
-if (!nav || nav.dataset.siteId !== sid){
-  if (nav && nav.parentElement) nav.parentElement.removeChild(nav);
-
-  nav = document.createElement('button');
-  nav.type = 'button';
-  nav.className = 'bs-nav-btn';
-  nav.dataset.siteId = sid;
-  nav.textContent = 'Navigate';
-
-  // place nav first, then put "Mark done" after it for a neat row
-  input.insertAdjacentElement('afterend', nav);
-  nav.insertAdjacentElement('afterend', btn);
-
-  siteNavButtons.set(sid, nav);
-
-  nav.addEventListener('click', (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    if (typeof startInPageNav === 'function') {
-      startInPageNav(sid); // uses the Google panel + follow-me
-    } else {
-      alert('Navigation module not ready yet.');
-    }
-    
     const optSet = (sid, status) => optimistic.set(sid, { status, t: Date.now() });
     const optGet = (sid) => {
       const o = optimistic.get(sid);
@@ -419,6 +387,9 @@ if (!nav || nav.dataset.siteId !== sid){
         const sid = findSiteIdForNotes(input);
         if (!sid) return;
 
+        siteInputs.set(sid, input);
+
+        // Ensure "Mark done" button
         let btn = siteButtons.get(sid);
         if (!btn || btn.dataset.siteId !== sid){
           if (btn && btn.parentElement) btn.parentElement.removeChild(btn);
@@ -457,6 +428,30 @@ if (!nav || nav.dataset.siteId !== sid){
           input.addEventListener('blur',   saveNote);
         }
 
+        // Ensure "Navigate" button
+        let nav = siteNavButtons.get(sid);
+        if (!nav || nav.dataset.siteId !== sid){
+          if (nav && nav.parentElement) nav.parentElement.remove();
+
+          nav = document.createElement('button');
+          nav.type = 'button';
+          nav.className = 'bs-nav-btn';
+          nav.dataset.siteId = sid;
+          nav.textContent = 'Navigate';
+
+          // Insert nav first, then the done button after it
+          input.insertAdjacentElement('afterend', nav);
+          nav.insertAdjacentElement('afterend', btn);
+
+          siteNavButtons.set(sid, nav);
+
+          nav.addEventListener('click', (e)=>{
+            e.preventDefault(); e.stopPropagation();
+            if (typeof startInPageNav === 'function') startInPageNav(sid);
+            else alert('Navigation module not ready yet.');
+          });
+        }
+
         // reflect EFFECTIVE state -> UI (optimistic overrides freshest logs while fresh)
         const eff = effectiveFor(sid);
         const opt  = optGet(sid);
@@ -472,6 +467,7 @@ if (!nav || nav.dataset.siteId !== sid){
       });
     }
 
+    // run once, then keep tidy for a minute (in case the sidebar renders incrementally)
     const iv = setInterval(()=>requestAnimationFrame(injectButtons), 1000);
     setTimeout(()=>clearInterval(iv), 60000);
     requestAnimationFrame(injectButtons);
@@ -495,6 +491,7 @@ if (!nav || nav.dataset.siteId !== sid){
       if (!u) return;
       const uid = u.uid;
 
+      // work out which site IDs are shown
       const params = new URLSearchParams(location.search);
       let ids = (params.get('focus')||'')
         .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
@@ -797,7 +794,7 @@ function toggleFollow(G){
   }, console.warn, { enableHighAccuracy:true, maximumAge:2000 });
 }
 
-/* ---------- Hook your existing "Navigate" buttons in the sidebar ---------- */
+/* ---------- (Optional) extra wiring if you ever add separate "Navigate" links ---------- */
 (function wireNavigateButtons(){
   const idRx = /\bM\d{3,5}\b/i, up = s => String(s||'').toUpperCase();
   const root = document.getElementById('sidebar-content');
@@ -816,7 +813,7 @@ function toggleFollow(G){
 })();
   </script>
 
-  <!-- Google Maps JS API (replace the key) -->
-  <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+  <!-- Google Maps JS API (YOUR KEY IS EMBEDDED HERE) -->
+  <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY&loading=async"></script>
 </body>
 </html>
