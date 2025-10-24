@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="sidebar.css" />
+  <!-- Leaflet Routing Machine (CSS) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
 
   <style>
     :root{
@@ -18,8 +20,7 @@
       --soft:#f8fafc; --soft-2:#f1f5f9;
     }
     #map { height: 100vh; }
-document.body.classList.toggle('hide-markers', map.getZoom() < SHOW_MARKERS_ZOOM);
-    
+
     /* Sidebar compact + brand */
     #sidebar{
       width: 340px;
@@ -30,20 +31,19 @@ document.body.classList.toggle('hide-markers', map.getZoom() < SHOW_MARKERS_ZOOM
       overflow:auto;
     }
 
-   /* Hide marker text/background when we’re in "no-labels" mode */
-#map .leaflet-marker-icon.no-labels,
-#map .leaflet-marker-icon.no-labels * {
-  color: transparent !important;
-  text-shadow: none !important;
-  background: transparent !important;
-  border-color: transparent !important;
-}
+    /* Hide marker text/background when we’re in "no-labels" mode */
+    #map .leaflet-marker-icon.no-labels,
+    #map .leaflet-marker-icon.no-labels * {
+      color: transparent !important;
+      text-shadow: none !important;
+      background: transparent !important;
+      border-color: transparent !important;
+    }
 
-/* Prevent any marker flash before the JS culler runs */
-body.pending-markers .leaflet-marker-pane { 
-  display: none !important; 
-}
-
+    /* Prevent any marker flash before the JS culler runs */
+    body.pending-markers .leaflet-marker-pane { 
+      display: none !important; 
+    }
 
     #sidebar .sidebar-head{
       position: sticky; top:0; z-index: 5;
@@ -126,6 +126,20 @@ body.pending-markers .leaflet-marker-pane {
       padding:8px 10px; margin:6px 0; border:1px solid #e2e8f0; background:#fff8f8;
       color:#7f1d1d; border-radius:8px; font-weight:700;
     }
+
+    /* Inline routing UI */
+    .nav-inline-btn{
+      display:inline-block;margin-top:10px;padding:8px 10px;
+      border-radius:8px;font-weight:700;cursor:pointer;
+      background:#1a73e8;color:#fff;border:0
+    }
+    .nav-inline-btn:hover{opacity:.9}
+
+    /* Small map control for tracking */
+    .leaflet-control-follow a{
+      width:28px;height:28px;line-height:28px;text-align:center;
+      font-weight:900;border-radius:4px;background:#fff;color:#333;
+    }
   </style>
 </head>
 <body class="hide-markers">
@@ -177,8 +191,11 @@ body.pending-markers .leaflet-marker-pane {
   <!-- Map -->
   <div id="map"></div>
 
-  <!-- Leaflet + your app scripts (let script.js initialise the map ONCE) -->
+  <!-- Leaflet + app scripts -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet Routing Machine (JS) -->
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
   <script src="script.js"></script>
   <script src="sidebar.js"></script>
 
@@ -431,7 +448,7 @@ body.pending-markers .leaflet-marker-pane {
     setTimeout(()=>clearInterval(iv), 60000);
     requestAnimationFrame(injectButtons);
 
-    // live snapshot of assignments (if readable) — optional
+    // live snapshot of assignments (if readable)
     firebase.auth().onAuthStateChanged(async ()=>{
       const tid = await ensureTaskId();
       if (tid){
@@ -618,7 +635,8 @@ body.pending-markers .leaflet-marker-pane {
 })();
   </script>
 
-<script>
+  <!-- Marker culling + label gating -->
+  <script>
 (function(){
   // Below 14: hide ALL markers. 14–15: markers shown but labels hidden. 16+: labels shown.
   const SHOW_MARKERS_ZOOM = 14;
@@ -715,7 +733,163 @@ body.pending-markers .leaflet-marker-pane {
   }
   start();
 })();
-</script>
+  </script>
+
+  <!-- Inline routing + live follow-me tracking -->
+  <script>
+(function(){
+  function getMap(){
+    return window.BS_MAP || window.__BS_map || window.map || window.leafletMap || null;
+  }
+
+  let routingCtrl = null;
+  let lastDest = null;
+
+  function ensureRouting(map){
+    if (routingCtrl) return routingCtrl;
+    routingCtrl = L.Routing.control({
+      router: L.Routing.osrmv1({
+        serviceUrl: 'https://router.project-osrm.org/route/v1'
+      }),
+      waypoints: [],
+      lineOptions: { extendToWaypoints:true, addWaypoints:false },
+      addWaypoints:false,
+      draggableWaypoints:false,
+      routeWhileDragging:false,
+      showAlternatives:true,
+      collapsible:true,
+      show:false,
+      fitSelectedRoutes:true,
+      createMarker: () => null
+    }).addTo(map);
+    return routingCtrl;
+  }
+
+  // user location (blue dot + accuracy ring)
+  let watchId = null;
+  let isTracking = false;
+  let isFollowing = true;
+  let userDot = null, userRing = null;
+
+  function setUserLocation(map, latlng, accuracy){
+    if (!userDot){
+      userDot = L.circleMarker(latlng, {
+        radius:6, weight:2, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:1
+      }).addTo(map);
+      userRing = L.circle(latlng, {
+        radius: accuracy || 25, color:'#1a73e8', weight:1, fillOpacity:0.08
+      }).addTo(map);
+    }else{
+      userDot.setLatLng(latlng);
+      userRing.setLatLng(latlng).setRadius(accuracy || 25);
+    }
+    if (isFollowing) map.panTo(latlng, {animate:true});
+
+    // keep route origin synced to live location
+    if (routingCtrl){
+      const wps = routingCtrl.getWaypoints();
+      const dest = lastDest || (wps[1] && wps[1].latLng) || null;
+      if (dest) routingCtrl.setWaypoints([ latlng, dest ]);
+    }
+  }
+
+  function startTracking(map){
+    if (watchId || !('geolocation' in navigator)) return;
+    isTracking = true;
+    watchId = navigator.geolocation.watchPosition(
+      pos => setUserLocation(map,
+        L.latLng(pos.coords.latitude, pos.coords.longitude),
+        pos.coords.accuracy
+      ),
+      err => { console.warn('watchPosition error', err); stopTracking(); },
+      { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
+    );
+  }
+  function stopTracking(){
+    isTracking = false;
+    if (watchId){ navigator.geolocation.clearWatch(watchId); watchId = null; }
+  }
+
+  function breakFollow(){ isFollowing = false; }
+
+  const FollowControl = L.Control.extend({
+    options: { position:'topleft' },
+    onAdd: function(map){
+      const div = L.DomUtil.create('div','leaflet-bar leaflet-control leaflet-control-follow');
+      const btn = L.DomUtil.create('a','',div);
+      btn.href = '#';
+      btn.title = 'Toggle live tracking';
+      btn.innerHTML = '●';
+      function sync(){
+        btn.style.background = isTracking ? '#1a73e8' : '#fff';
+        btn.style.color = isTracking ? '#fff' : '#333';
+      }
+      L.DomEvent.on(btn,'click',L.DomEvent.stop)
+                .on(btn,'click',()=>{
+                  if (isTracking) { stopTracking(); }
+                  else { startTracking(map); isFollowing = true; }
+                  sync();
+                });
+      sync();
+      return div;
+    }
+  });
+
+  function onPopupOpen(e){
+    const src = e.popup && e.popup._source;
+    if (!src || !src.getLatLng) return;
+    const dest = src.getLatLng();
+    lastDest = dest;
+
+    const content = e.popup.getElement()?.querySelector('.leaflet-popup-content');
+    if (!content || content.querySelector('.nav-inline-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'nav-inline-btn';
+    btn.textContent = 'Route here';
+    btn.addEventListener('click', () => {
+      const map = getMap();
+      const rc = ensureRouting(map);
+
+      const useRoute = (origin) => { rc.setWaypoints([origin, dest]); rc.show(); lastDest = dest; };
+
+      if (userDot) {
+        useRoute(userDot.getLatLng());
+      } else if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          p => {
+            const ll = L.latLng(p.coords.latitude, p.coords.longitude);
+            setUserLocation(map, ll, p.coords.accuracy);
+            useRoute(ll);
+          },
+          _ => useRoute(map.getCenter()),
+          { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+        );
+      } else {
+        useRoute(map.getCenter());
+      }
+    });
+
+    content.appendChild(btn);
+  }
+
+  (function boot(){
+    const map = getMap();
+    if (!map) return setTimeout(boot, 300);
+
+    ensureRouting(map);
+    map.on('popupopen', onPopupOpen);
+
+    map.addControl(new FollowControl());
+    map.on('movestart', breakFollow);
+    map.on('zoomstart', breakFollow);
+
+    // Auto-start tracking if ?track=1
+    const auto = new URLSearchParams(location.search).get('track') === '1';
+    if (auto) { startTracking(map); isFollowing = true; }
+  })();
+})();
+  </script>
 
 </body>
 </html>
