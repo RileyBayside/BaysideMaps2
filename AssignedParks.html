@@ -104,6 +104,13 @@
       background:#dcfce7; border-color:#bbf7d0; color:#065f46;
     }
 
+  /* ...existing styles... */
+  .bs-nav-btn{
+    appearance:none; border-radius:10px; border:1px solid #e2e8f0;
+    background:#1f2937; color:#fff; padding:6px 10px; font-weight:800;
+    cursor:pointer; margin-top:6px; margin-right:6px;
+  }
+
     /* Banner above filtered list */
     .assign-banner{
       padding:8px 10px; margin:6px 0; border:1px solid #e2e8f0; background:#fff8f8;
@@ -357,6 +364,8 @@
 
     // ---------- injection & sync ----------
     const siteButtons = new Map(); // siteId -> button
+    const siteInputs  = new Map(); // siteId -> notes input
+    const siteNavButtons = new Map(); // siteId -> navigate button
 
     // optimistic state (keep UI sticky until listeners refresh)
     const optimistic = new Map();  // siteId -> {status, t}
@@ -366,6 +375,32 @@
       btn.classList.toggle('done', !!isDone);
       btn.textContent = isDone ? 'Undo' : 'Mark done';
     };
+
+    // [NEW] Create/attach a "Navigate" button beside the notes input
+let nav = siteNavButtons.get(sid);
+if (!nav || nav.dataset.siteId !== sid){
+  if (nav && nav.parentElement) nav.parentElement.removeChild(nav);
+
+  nav = document.createElement('button');
+  nav.type = 'button';
+  nav.className = 'bs-nav-btn';
+  nav.dataset.siteId = sid;
+  nav.textContent = 'Navigate';
+
+  // place nav first, then put "Mark done" after it for a neat row
+  input.insertAdjacentElement('afterend', nav);
+  nav.insertAdjacentElement('afterend', btn);
+
+  siteNavButtons.set(sid, nav);
+
+  nav.addEventListener('click', (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    if (typeof startInPageNav === 'function') {
+      startInPageNav(sid); // uses the Google panel + follow-me
+    } else {
+      alert('Navigation module not ready yet.');
+    }
+    
     const optSet = (sid, status) => optimistic.set(sid, { status, t: Date.now() });
     const optGet = (sid) => {
       const o = optimistic.get(sid);
