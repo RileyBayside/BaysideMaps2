@@ -10,8 +10,6 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="sidebar.css" />
-  <!-- Leaflet Routing Machine (CSS) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
 
   <style>
     :root{
@@ -30,21 +28,6 @@
       box-shadow:0 8px 26px rgba(16,24,40,.08);
       overflow:auto;
     }
-
-    /* Hide marker text/background when we’re in "no-labels" mode */
-    #map .leaflet-marker-icon.no-labels,
-    #map .leaflet-marker-icon.no-labels * {
-      color: transparent !important;
-      text-shadow: none !important;
-      background: transparent !important;
-      border-color: transparent !important;
-    }
-
-    /* Prevent any marker flash before the JS culler runs */
-    body.pending-markers .leaflet-marker-pane { 
-      display: none !important; 
-    }
-
     #sidebar .sidebar-head{
       position: sticky; top:0; z-index: 5;
       display:flex; align-items:center; gap:10px;
@@ -127,22 +110,25 @@
       color:#7f1d1d; border-radius:8px; font-weight:700;
     }
 
-    /* Inline routing UI */
-    .nav-inline-btn{
-      display:inline-block;margin-top:10px;padding:8px 10px;
-      border-radius:8px;font-weight:700;cursor:pointer;
-      background:#1a73e8;color:#fff;border:0
+    /* In-page Google navigation panel */
+    #gnavPanel{
+      display:none; position:fixed; right:12px; bottom:12px;
+      width:380px; max-width:92vw; height:440px;
+      background:#fff; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.25);
+      overflow:hidden; z-index:6000;
     }
-    .nav-inline-btn:hover{opacity:.9}
-
-    /* Small map control for tracking */
-    .leaflet-control-follow a{
-      width:28px;height:28px;line-height:28px;text-align:center;
-      font-weight:900;border-radius:4px;background:#fff;color:#333;
+    #gnavPanel .bar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 10px; border-bottom:1px solid #e5e7eb;
+      font:600 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     }
+    #gnavPanel .bar button{
+      background:#111827; color:#fff; border:0; border-radius:8px; padding:6px 8px; margin-left:6px;
+    }
+    #gnavSteps{ height:38%; overflow:auto; padding:8px 10px; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
   </style>
 </head>
-<body class="hide-markers">
+<body>
 
   <!-- Firebase + auth guard -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -191,11 +177,22 @@
   <!-- Map -->
   <div id="map"></div>
 
-  <!-- Leaflet + app scripts -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- Leaflet Routing Machine (JS) -->
-  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <!-- In-page Google navigation panel -->
+  <div id="gnavPanel">
+    <div class="bar">
+      <span>Navigation</span>
+      <div>
+        <button id="gnavFollowBtn" type="button">Follow me</button>
+        <button id="gnavOpenBtn"   type="button">Open in Google Maps</button>
+        <button id="gnavCloseBtn"  type="button" style="background:#b91c1c">Close</button>
+      </div>
+    </div>
+    <div id="gnavMap" style="width:100%; height:62%;"></div>
+    <div id="gnavSteps"></div>
+  </div>
 
+  <!-- Leaflet + your app scripts (let script.js initialise the map ONCE) -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="script.js"></script>
   <script src="sidebar.js"></script>
 
@@ -215,32 +212,6 @@
       });
     })();
   </script>
-  <script>
-/** Global index of sites: M#### -> { latLng, layer } */
-window.BS_SITES = window.BS_SITES || {};
-
-/** Call this from script.js when you create each site layer */
-window.BS_registerSite = function(id, layer){
-  if (!id || !layer) return;
-  const sid = String(id).trim().toUpperCase();
-
-  // Figure out a point to route to (marker position or polygon centroid)
-  const latLng =
-    typeof layer.getLatLng === 'function'
-      ? layer.getLatLng()
-      : (typeof layer.getBounds === 'function'
-          ? layer.getBounds().getCenter()
-          : null);
-
-  if (!latLng) return;
-
-  // Store in the global index
-  window.BS_SITES[sid] = { latLng, layer };
-
-  // Also tag the layer so other utilities can discover the ID
-  if (layer.options) layer.options.siteId = sid;
-};
-</script>
 
   <!-- Filter sidebar to assigned IDs shown in ?focus=... -->
   <script>
@@ -386,7 +357,6 @@ window.BS_registerSite = function(id, layer){
 
     // ---------- injection & sync ----------
     const siteButtons = new Map(); // siteId -> button
-    const siteInputs  = new Map(); // siteId -> notes input
 
     // optimistic state (keep UI sticky until listeners refresh)
     const optimistic = new Map();  // siteId -> {status, t}
@@ -413,8 +383,6 @@ window.BS_registerSite = function(id, layer){
       notes.forEach(input=>{
         const sid = findSiteIdForNotes(input);
         if (!sid) return;
-
-        siteInputs.set(sid, input);
 
         let btn = siteButtons.get(sid);
         if (!btn || btn.dataset.siteId !== sid){
@@ -469,12 +437,11 @@ window.BS_registerSite = function(id, layer){
       });
     }
 
-    // run once, then keep tidy for a minute (in case the sidebar renders incrementally)
     const iv = setInterval(()=>requestAnimationFrame(injectButtons), 1000);
     setTimeout(()=>clearInterval(iv), 60000);
     requestAnimationFrame(injectButtons);
 
-    // live snapshot of assignments (if readable)
+    // live snapshot of assignments (if readable) — optional
     firebase.auth().onAuthStateChanged(async ()=>{
       const tid = await ensureTaskId();
       if (tid){
@@ -493,7 +460,6 @@ window.BS_registerSite = function(id, layer){
       if (!u) return;
       const uid = u.uid;
 
-      // work out which site IDs are shown
       const params = new URLSearchParams(location.search);
       let ids = (params.get('focus')||'')
         .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
@@ -535,517 +501,287 @@ window.BS_registerSite = function(id, layer){
 
   <!-- Site photo upload + simple gallery -->
   <script>
-(function(){
-  const storage = firebase.storage();
-  const db = firebase.firestore();
+  (function(){
+    const storage = firebase.storage();
+    const db = firebase.firestore();
 
-  function getActiveSiteId(){ return window.currentSiteId || null; }
+    function getActiveSiteId(){ return window.currentSiteId || null; }
 
-  function fmtSafeName(file){
-    const ts = Date.now();
-    const base = (file?.name || 'photo.jpg').replace(/\s+/g,'_');
-    return `${ts}-${base}`;
-  }
+    function fmtSafeName(file){
+      const ts = Date.now();
+      const base = (file?.name || 'photo.jpg').replace(/\s+/g,'_');
+      return `${ts}-${base}`;
+    }
 
-  async function startPhotoUpload(siteId){
-    const user = firebase.auth().currentUser;
-    if (!user){ alert('Sign in required'); return; }
+    async function startPhotoUpload(siteId){
+      const user = firebase.auth().currentUser;
+      if (!user){ alert('Sign in required'); return; }
 
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
 
-    input.onchange = async () => {
-      const file = input.files[0];
-      if (!file) return;
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
 
-      const safeName = fmtSafeName(file);
-      const path = `work_photos/${siteId}/${user.uid}/${safeName}`;
-      const ref  = storage.ref(path);
+        const safeName = fmtSafeName(file);
+        const path = `work_photos/${siteId}/${user.uid}/${safeName}`;
+        const ref  = storage.ref(path);
 
-      const meta = {
-        contentType: file.type || 'image/jpeg',
-        customMetadata: { siteId, uploadedBy: user.uid }
+        const meta = {
+          contentType: file.type || 'image/jpeg',
+          customMetadata: { siteId, uploadedBy: user.uid }
+        };
+
+        const prog = document.getElementById('photoProg');
+        if (prog) { prog.value = 0; prog.style.display = 'block'; }
+
+        const task = ref.put(file, meta);
+
+        task.on('state_changed',
+          snap => { if (prog) prog.value = Math.round(100 * snap.bytesTransferred / snap.totalBytes); },
+          err  => { if (prog) prog.style.display = 'none'; alert('Upload failed: ' + (err?.message || err)); },
+          async () => {
+            try{
+              const url = await ref.getDownloadURL();
+              await db.collection('site_photos').add({
+                siteId: String(siteId).toUpperCase(),
+                url,
+                storagePath: path,
+                uploadedBy: user.uid,
+                operatorUid: user.uid,
+                operatorEmail: user.email || null,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              if (prog) { prog.value = 100; setTimeout(()=>prog.style.display='none', 400); }
+              renderSiteGallery(String(siteId).toUpperCase());
+            }catch(e){
+              if (prog) prog.style.display = 'none';
+              alert('Saved to storage but failed to index in Firestore.');
+              console.error(e);
+            }
+          }
+        );
       };
 
-      const prog = document.getElementById('photoProg');
-      if (prog) { prog.value = 0; prog.style.display = 'block'; }
-
-      const task = ref.put(file, meta);
-
-      task.on('state_changed',
-        snap => { if (prog) prog.value = Math.round(100 * snap.bytesTransferred / snap.totalBytes); },
-        err  => { if (prog) prog.style.display = 'none'; alert('Upload failed: ' + (err?.message || err)); },
-        async () => {
-          try{
-            const url = await ref.getDownloadURL();
-            await db.collection('site_photos').add({
-              siteId: String(siteId).toUpperCase(),
-              url,
-              storagePath: path,
-              uploadedBy: user.uid,
-              operatorUid: user.uid,
-              operatorEmail: user.email || null,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-              timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            if (prog) { prog.value = 100; setTimeout(()=>prog.style.display='none', 400); }
-            renderSiteGallery(String(siteId).toUpperCase());
-          }catch(e){
-            if (prog) prog.style.display = 'none';
-            alert('Saved to storage but failed to index in Firestore.');
-            console.error(e);
-          }
-        }
-      );
-    };
-
-    input.click();
-  }
-
-  async function renderSiteGallery(siteId){
-    const box = document.getElementById('sitePhotoGallery');
-    if (!box || !siteId) return;
-    box.textContent = 'Loading…';
-    try{
-      const q = await db.collection('site_photos')
-        .where('siteId','==',siteId)
-        .orderBy('createdAt','desc')
-        .limit(24)
-        .get();
-
-      if (q.empty){ box.textContent = 'No photos yet.'; return; }
-
-      const frag = document.createDocumentFragment();
-      q.forEach(doc => {
-        const d = doc.data();
-        const a = document.createElement('a');
-        a.href = d.url || '#';
-        a.target = '_blank'; a.rel = 'noopener';
-
-        const img = document.createElement('img');
-        img.src = d.url; img.alt = d.storagePath;
-        img.style.width = '120px';
-        img.style.height = '90px';
-        img.style.objectFit = 'cover';
-        img.style.borderRadius = '8px';
-        img.loading = 'lazy';
-
-        a.appendChild(img);
-        frag.appendChild(a);
-      });
-      box.innerHTML = '';
-      box.appendChild(frag);
-    }catch(e){
-      box.textContent = 'Failed to load photos.';
-      console.error(e);
+      input.click();
     }
-  }
 
-  document.getElementById('uploadSitePhotoBtn')?.addEventListener('click', async () => {
-    let siteId = getActiveSiteId();
-    if (!siteId){
-      siteId = prompt('Enter Site ID (e.g., M0123)');
-      if (!siteId) return;
-    }
-    await startPhotoUpload(String(siteId).trim().toUpperCase());
-  });
+    async function renderSiteGallery(siteId){
+      const box = document.getElementById('sitePhotoGallery');
+      if (!box || !siteId) return;
+      box.textContent = 'Loading…';
+      try{
+        const q = await db.collection('site_photos')
+          .where('siteId','==',siteId)
+          .orderBy('createdAt','desc')
+          .limit(24)
+          .get();
 
-  firebase.auth().onAuthStateChanged(() => {
-    const s = getActiveSiteId();
-    if (s) renderSiteGallery(String(s).toUpperCase());
-  });
+        if (q.empty){ box.textContent = 'No photos yet.'; return; }
 
-  window.renderSiteGallery = renderSiteGallery;
-})();
-  </script>
+        const frag = document.createDocumentFragment();
+        q.forEach(doc => {
+          const d = doc.data();
+          const a = document.createElement('a');
+          a.href = d.url || '#';
+          a.target = '_blank'; a.rel = 'noopener';
 
-  <!-- Marker culling + label gating -->
-  <script>
-(function(){
-  // Below 14: hide ALL markers. 14–15: markers shown but labels hidden. 16+: labels shown.
-  const SHOW_MARKERS_ZOOM = 14;
-  const SHOW_LABELS_ZOOM  = 16;
-  const VIEW_PAD = 0.20; // pad viewport for culling
+          const img = document.createElement('img');
+          img.src = d.url; img.alt = d.storagePath;
+          img.style.width = '120px';
+          img.style.height = '90px';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '8px';
+          img.loading = 'lazy';
 
-  // Optional: only show assigned site IDs if ?focus=M0123,M0456,...
-  const up = s => String(s||'').trim().toUpperCase();
-  const idRx = /\bM\d{3,5}\b/i;
-  const focus = new URLSearchParams(location.search).get('focus') || '';
-  const FOCUS_SET = new Set(focus.split(',').map(up).filter(Boolean));
-
-  function getMap(){
-    const picks = [window.BS_MAP, window.__BS_map, window.map, window.leafletMap];
-    return picks.find(m => m && typeof m.getZoom === 'function' && typeof m.on === 'function') || null;
-  }
-  function isMarker(l){ return l instanceof L.Marker; }
-  function siteIdFromMarker(m){
-    if (!m) return null;
-    if (m.options && m.options.siteId) return up(m.options.siteId);
-    if (m.options && m.options.title){
-      const mm = String(m.options.title).toUpperCase().match(idRx);
-      if (mm) return mm[0];
-    }
-    if (typeof m.getTooltip === 'function' && m.getTooltip()){
-      const mm = String(m.getTooltip().getContent()||'').toUpperCase().match(idRx);
-      if (mm) return mm[0];
-    }
-    const txt = (m._icon && m._icon.textContent) ? m._icon.textContent : '';
-    const mm = String(txt||'').toUpperCase().match(idRx);
-    return mm ? mm[0] : null;
-  }
-  function isAssigned(m){
-    if (!FOCUS_SET.size) return true;
-    const sid = siteIdFromMarker(m);
-    return !!(sid && FOCUS_SET.has(sid));
-  }
-
-  const PARKED = new Set(); // markers temporarily removed from map
-
-  function wantOnMap(map, m){
-    if (map.getZoom() < SHOW_MARKERS_ZOOM) return false;
-    if (!isAssigned(m)) return false;
-    const ll = m.getLatLng?.();
-    if (!ll) return false;
-    return map.getBounds().pad(VIEW_PAD).contains(ll);
-  }
-  function applyLabelState(map, m){
-    if (!m._icon) return;
-    const showLabels = map.getZoom() >= SHOW_LABELS_ZOOM;
-    m._icon.classList.toggle('no-labels', !showLabels);
-  }
-
-  function rebalance(map){
-    // Keep the entire marker pane hidden until zoom is high enough
-    document.body.classList.toggle('pending-markers', map.getZoom() < SHOW_MARKERS_ZOOM);
-
-    // Demote any on-map markers that we don't want visible
-    for (const k in map._layers){
-      const lyr = map._layers[k];
-      if (!isMarker(lyr)) continue;
-      if (!wantOnMap(map, lyr) && map.hasLayer(lyr)){
-        map.removeLayer(lyr);
-        PARKED.add(lyr);
+          a.appendChild(img);
+          frag.appendChild(a);
+        });
+        box.innerHTML = '';
+        box.appendChild(frag);
+      }catch(e){
+        box.textContent = 'Failed to load photos.';
+        console.error(e);
       }
     }
-    // Promote parked markers we now want visible
-    for (const m of Array.from(PARKED)){
-      if (wantOnMap(map, m)){
-        m.addTo(map);
-        applyLabelState(map, m);
-        PARKED.delete(m);
+
+    document.getElementById('uploadSitePhotoBtn')?.addEventListener('click', async () => {
+      let siteId = getActiveSiteId();
+      if (!siteId){
+        siteId = prompt('Enter Site ID (e.g., M0123)');
+        if (!siteId) return;
       }
-    }
-    // Make sure label state matches zoom
-    for (const k in map._layers){
-      const lyr = map._layers[k];
-      if (isMarker(lyr)) applyLabelState(map, lyr);
-    }
-  }
-
-  function start(){
-    const map = getMap();
-    if (!map) return setTimeout(start, 200);
-
-    const run = () => requestAnimationFrame(() => rebalance(map));
-    map.on('zoomend moveend layeradd', run);
-    map.whenReady(run);
-
-    // Initial passes to catch markers as they stream in
-    setTimeout(run, 0);
-    setTimeout(run, 300);
-    setTimeout(run, 1000);
-  }
-  start();
-})();
-  </script>
-
-  <script>
-(function(){
-  function getMap(){
-    return window.BS_MAP || window.__BS_map || window.map || window.leafletMap || null;
-  }
-
-  let lastDest = null;
-  let userDot = null, userRing = null;
-  let watchId = null;
-  let isTracking = false;
-  let isFollowing = true;
-
-  function ensureRouting(map){
-    if (map._bsRouting) return map._bsRouting;
-    const rc = L.Routing.control({
-      router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-      waypoints: [],
-      lineOptions: { extendToWaypoints:true, addWaypoints:false },
-      addWaypoints:false,
-      draggableWaypoints:false,
-      routeWhileDragging:false,
-      showAlternatives:true,
-      collapsible:true,
-      show:false,
-      fitSelectedRoutes:true,
-      createMarker: () => null
-    }).addTo(map);
-    map._bsRouting = rc;
-    return rc;
-  }
-
-  function setUserLocation(map, latlng, accuracy){
-    // keep last user position globally on the map for reuse
-    map._bsUserLast = latlng;
-
-    if (!userDot){
-      userDot = L.circleMarker(latlng, {
-        radius:6, weight:2, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:1
-      }).addTo(map);
-      userRing = L.circle(latlng, {
-        radius: accuracy || 25, color:'#1a73e8', weight:1, fillOpacity:0.08
-      }).addTo(map);
-    }else{
-      userDot.setLatLng(latlng);
-      userRing.setLatLng(latlng).setRadius(accuracy || 25);
-    }
-    if (isFollowing) map.panTo(latlng, {animate:true});
-
-    // keep route origin synced to live location
-    if (map._bsRouting){
-      const wps = map._bsRouting.getWaypoints();
-      const dest = lastDest || (wps[1] && wps[1].latLng) || null;
-      if (dest) map._bsRouting.setWaypoints([ latlng, dest ]);
-    }
-  }
-
-  function startTracking(map){
-    if (watchId || !('geolocation' in navigator)) return;
-    isTracking = true;
-    watchId = navigator.geolocation.watchPosition(
-      pos => setUserLocation(map,
-        L.latLng(pos.coords.latitude, pos.coords.longitude),
-        pos.coords.accuracy
-      ),
-      err => { console.warn('watchPosition error', err); stopTracking(); },
-      { enableHighAccuracy:true, maximumAge:5000, timeout:15000 }
-    );
-  }
-  function stopTracking(){
-    isTracking = false;
-    if (watchId){ navigator.geolocation.clearWatch(watchId); watchId = null; }
-  }
-  function breakFollow(){ isFollowing = false; }
-
-  // Small control to toggle tracking
-  const FollowControl = L.Control.extend({
-    options: { position:'topleft' },
-    onAdd: function(map){
-      const div = L.DomUtil.create('div','leaflet-bar leaflet-control leaflet-control-follow');
-      const btn = L.DomUtil.create('a','',div);
-      btn.href = '#';
-      btn.title = 'Toggle live tracking';
-      btn.innerHTML = '●';
-      function sync(){
-        btn.style.background = isTracking ? '#1a73e8' : '#fff';
-        btn.style.color = isTracking ? '#fff' : '#333';
-      }
-      L.DomEvent.on(btn,'click',L.DomEvent.stop)
-                .on(btn,'click',()=>{
-                  if (isTracking) { stopTracking(); }
-                  else { startTracking(map); isFollowing = true; }
-                  sync();
-                });
-      sync();
-      return div;
-    }
-  });
-
-  // Add a “Route here” button inside every popup
-  function onPopupOpen(e){
-    const src = e.popup && e.popup._source;
-    if (!src || !src.getLatLng) return;
-    const dest = src.getLatLng();
-    lastDest = dest;
-
-    const content = e.popup.getElement()?.querySelector('.leaflet-popup-content');
-    if (!content || content.querySelector('.nav-inline-btn')) return;
-
-    const btn = document.createElement('button');
-    btn.className = 'nav-inline-btn';
-    btn.textContent = 'Route here';
-    btn.addEventListener('click', () => {
-      const map = getMap();
-      const rc = ensureRouting(map);
-      const useRoute = (origin) => { rc.setWaypoints([origin, dest]); rc.show(); lastDest = dest; };
-
-      if (map._bsUserLast) {
-        useRoute(map._bsUserLast);
-      } else if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          p => {
-            const ll = L.latLng(p.coords.latitude, p.coords.longitude);
-            setUserLocation(map, ll, p.coords.accuracy);
-            useRoute(ll);
-          },
-          _ => useRoute(map.getCenter()),
-          { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
-        );
-      } else {
-        useRoute(map.getCenter());
-      }
+      await startPhotoUpload(String(siteId).trim().toUpperCase());
     });
 
-    content.appendChild(btn);
-  }
+    firebase.auth().onAuthStateChanged(() => {
+      const s = getActiveSiteId();
+      if (s) renderSiteGallery(String(s).toUpperCase());
+    });
 
-  // Expose a global “route to” for sidebar buttons
-  window.BS_routeTo = function(lat, lng){
-    const map = getMap();
-    if (!map) return;
-    const rc = ensureRouting(map);
-    const dest = L.latLng(lat, lng);
-    const useRoute = (origin) => { rc.setWaypoints([origin, dest]); rc.show(); lastDest = dest; };
-
-    if (map._bsUserLast) { useRoute(map._bsUserLast); return; }
-
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        p => {
-          const ll = L.latLng(p.coords.latitude, p.coords.longitude);
-          setUserLocation(map, ll, p.coords.accuracy);
-          useRoute(ll);
-        },
-        _ => useRoute(map.getCenter()),
-        { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
-      );
-    } else {
-      useRoute(map.getCenter());
-    }
-  };
-
-  (function boot(){
-    const map = getMap();
-    if (!map) return setTimeout(boot, 300);
-
-    ensureRouting(map);
-    map.on('popupopen', onPopupOpen);
-
-    map.addControl(new FollowControl());
-    map.on('movestart', breakFollow);
-    map.on('zoomstart', breakFollow);
-
-    // Auto-start tracking if ?track=1
-    const auto = new URLSearchParams(location.search).get('track') === '1';
-    if (auto) { startTracking(map); isFollowing = true; }
+    window.renderSiteGallery = renderSiteGallery;
   })();
-})();
-</script>
+  </script>
 
+  <!-- ========= In-page Google Maps directions + Follow-me ========= -->
   <script>
-(function(){
-  const idRx = /\bM\d{3,5}\b/i;
-  const up = s => String(s||'').trim().toUpperCase();
+/* ---------- Registry: capture site coordinates from Leaflet layers ---------- */
+window.BS_SITES = {}; // { M0123: {id, layer, lat, lng} }
 
+window.BS_registerSite = function(id, layer){
+  if (!id || !layer) return;
+  id = String(id).toUpperCase();
+  let ll = null;
+  try {
+    if (typeof layer.getLatLng === 'function') ll = layer.getLatLng();
+    else if (typeof layer.getBounds === 'function') ll = layer.getBounds().getCenter();
+  } catch(_) {}
+  if (!ll) return;
+  window.BS_SITES[id] = { id, layer, lat: ll.lat, lng: ll.lng };
+};
+
+// Discover the Leaflet map and auto-register layers as they appear.
+(function watchLeafletLayers(){
   function getMap(){
-    return window.BS_MAP || window.__BS_map || window.map || window.leafletMap || null;
+    const c = [window.BS_MAP, window.__BS_map, window.map, window.leafletMap];
+    return c.find(m => m && typeof m.on === 'function' && typeof m.getBounds === 'function') || null;
   }
-  function isMarker(l){ return l instanceof L.Marker; }
+  const map = getMap();
+  if (!map) return setTimeout(watchLeafletLayers, 300);
 
-  // Build an index sid -> marker (persists even if marker is later removed from the map)
-  const MARKER_BY_ID = {};
-  function siteIdFromMarker(m){
-    if (!m) return null;
-    if (m.options && m.options.siteId) return up(m.options.siteId);
-    if (m.options && m.options.title){
-      const mm = String(m.options.title).toUpperCase().match(idRx);
-      if (mm) return mm[0];
-    }
-    if (typeof m.getTooltip === 'function' && m.getTooltip()){
-      const txt = m.getTooltip().getContent();
-      const mm  = String(txt||'').toUpperCase().match(idRx);
-      if (mm) return mm[0];
-    }
-    const txt = (m._icon && m._icon.textContent) ? m._icon.textContent : '';
-    const mm = String(txt||'').toUpperCase().match(idRx);
-    return mm ? mm[0] : null;
-  }
-  function indexExistingMarkers(map){
-    for (const k in map._layers){
-      const lyr = map._layers[k];
-      if (!isMarker(lyr)) continue;
-      const sid = siteIdFromMarker(lyr);
-      if (sid) MARKER_BY_ID[sid] = lyr;
-    }
-  }
-  function attachLayerAdd(map){
-    map.on('layeradd', e=>{
-      const l = e.layer;
-      if (!isMarker(l)) return;
-      const sid = siteIdFromMarker(l);
-      if (sid) MARKER_BY_ID[sid] = l;
-    });
-  }
-
-  function findSiteIdFromRow(el){
-    if (!el) return null;
-    if (el.dataset && el.dataset.siteId) return up(el.dataset.siteId);
-    const m = (el.textContent||'').toUpperCase().match(idRx);
+  const idRx = /\bM\d{3,5}\b/i;
+  function idFromLayer(layer){
+    const guess = (layer?.options?.siteId) ||
+                  (layer?.options?.title) ||
+                  (layer?.getTooltip && layer.getTooltip()?.getContent()) ||
+                  (layer?._icon && layer._icon.textContent) || '';
+    const m = String(guess).toUpperCase().match(idRx);
     return m ? m[0] : null;
   }
-
-  function injectButtons(){
-    const root = document.getElementById('sidebar-content');
-    if (!root) return;
-
-    const rows = root.querySelectorAll('li, .list-item, .sidebar-row, .item, div');
-    rows.forEach(row=>{
-      if (row.querySelector('.bs-nav-btn')) return; // already added
-      const sid = findSiteIdFromRow(row);
-      if (!sid) return;
-
-      const btn = document.createElement('button');
-      btn.type='button';
-      btn.className='nav-inline-btn bs-nav-btn';
-      btn.textContent='Navigate';
-      btn.style.marginLeft = 'auto';
-
-      btn.addEventListener('click', ()=>{
-        const map = getMap();
-        if (!map) return;
-        const marker = MARKER_BY_ID[sid];
-        const ll = marker?.getLatLng?.();
-        if (!ll){
-          alert(`Sorry, couldn't find coordinates for ${sid} yet. Try zooming the map or opening the marker first.`);
-          return;
-        }
-        window.BS_routeTo(ll.lat, ll.lng);
-      });
-
-      row.appendChild(btn);
-    });
+  function maybeRegister(layer){
+    const id = idFromLayer(layer);
+    if (id) window.BS_registerSite(id, layer);
   }
 
-  function start(){
-    const map = getMap();
-    if (!map) return setTimeout(start, 300);
-
-    // Index markers now and as they appear
-    indexExistingMarkers(map);
-    attachLayerAdd(map);
-
-    // Inject once, and watch for sidebar changes
-    injectButtons();
-    const root = document.getElementById('sidebar-content');
-    if (root){
-      const mo = new MutationObserver(()=>injectButtons());
-      mo.observe(root, { childList:true, subtree:true });
-      // a few initial passes to catch async render
-      setTimeout(injectButtons, 300);
-      setTimeout(injectButtons, 1200);
-    }
-  }
-  start();
+  // Register existing layers
+  for (const k in map._layers) maybeRegister(map._layers[k]);
+  // Register future layers
+  map.on('layeradd', (e)=> maybeRegister(e.layer));
 })();
-</script>
 
+/* ---------- Google Maps directions panel + follow-me ---------- */
+function initGNav(){
+  if (!window.google || !google.maps) {
+    alert('Google Maps not loaded yet.');
+    return null;
+  }
+  const panel   = document.getElementById('gnavPanel');
+  const mapEl   = document.getElementById('gnavMap');
+  const stepsEl = document.getElementById('gnavSteps');
+
+  const gmap = new google.maps.Map(mapEl, { zoom: 14, disableDefaultUI: false });
+  const dirSvc = new google.maps.DirectionsService();
+  const dirRend = new google.maps.DirectionsRenderer({ map: gmap, suppressMarkers: false });
+  const state = { panel, map: gmap, dirSvc, dirRend, watchId: null, meMarker: null, dest: null, stepsEl };
+
+  document.getElementById('gnavCloseBtn').onclick = () => {
+    panel.style.display = 'none';
+    if (state.watchId) { navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
+    document.getElementById('gnavFollowBtn').textContent = 'Follow me';
+  };
+  document.getElementById('gnavFollowBtn').onclick = () => toggleFollow(state);
+  document.getElementById('gnavOpenBtn').onclick   = () => {
+    if (!state.dest) return;
+    const {lat, lng} = state.dest;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
+  };
+  return state;
+}
+
+async function startInPageNav(siteId){
+  siteId = String(siteId||'').toUpperCase();
+  const s = window.BS_SITES[siteId];
+  if (!s) { alert(`Sorry, couldn't find coordinates for ${siteId} yet. Try zooming the map until its marker appears, then retry.`); return; }
+
+  const dest = { lat: s.lat, lng: s.lng };
+  if (!window.__GNAV) window.__GNAV = initGNav();
+  const G = window.__GNAV; if (!G) return;
+
+  G.dest = dest;
+  G.panel.style.display = 'block';
+
+  let origin;
+  try {
+    const pos = await new Promise((res, rej)=> navigator.geolocation.getCurrentPosition(
+      p => res(p.coords),
+      e => rej(e),
+      { enableHighAccuracy:true, timeout:12000, maximumAge:10000 }
+    ));
+    origin = { lat: pos.latitude, lng: pos.longitude };
+  } catch {
+    origin = G.map.getCenter()?.toJSON?.() || dest;
+  }
+
+  G.map.setCenter(dest);
+  routeOnce(G, origin, dest);
+}
+
+function routeOnce(G, origin, dest){
+  G.dirSvc.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING })
+    .then(r => {
+      G.dirRend.setDirections(r);
+      renderSteps(G.stepsEl, r.routes[0].legs?.[0]?.steps || []);
+    })
+    .catch(err => alert('Directions failed: ' + (err.message || err)));
+}
+
+function renderSteps(el, steps){
+  if (!el) return;
+  if (!steps.length){ el.textContent = 'No steps.'; return; }
+  el.innerHTML = steps.map(s => `<div style="padding:4px 0;border-top:1px solid #eef2f7">${s.instructions} — ${Math.round(s.distance.value/100)/10} km</div>`).join('');
+}
+
+function toggleFollow(G){
+  if (G.watchId){
+    navigator.geolocation.clearWatch(G.watchId);
+    G.watchId = null;
+    document.getElementById('gnavFollowBtn').textContent = 'Follow me';
+    return;
+  }
+  document.getElementById('gnavFollowBtn').textContent = 'Stop follow';
+  G.watchId = navigator.geolocation.watchPosition(pos => {
+    const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (G.meMarker) G.meMarker.setMap(null);
+    G.meMarker = new google.maps.Marker({ position: me, map: G.map, title: 'You' });
+    G.map.panTo(me);
+    if (G.dest) routeOnce(G, me, G.dest);
+  }, console.warn, { enableHighAccuracy:true, maximumAge:2000 });
+}
+
+/* ---------- Hook your existing "Navigate" buttons in the sidebar ---------- */
+(function wireNavigateButtons(){
+  const idRx = /\bM\d{3,5}\b/i, up = s => String(s||'').toUpperCase();
+  const root = document.getElementById('sidebar-content');
+  if (!root) return;
+
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('button, a');
+    if (!btn) return;
+    if (!/^navigate$/i.test(btn.textContent.trim())) return;
+
+    const row = btn.closest('li, .list-item, .sidebar-row, .item, div');
+    const m = (row?.textContent || '').toUpperCase().match(idRx);
+    if (!m) { alert('Could not determine site ID on that row.'); return; }
+    startInPageNav(up(m[0]));
+  });
+})();
+  </script>
+
+  <!-- Google Maps JS API (replace the key) -->
+  <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
 </body>
 </html>
