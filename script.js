@@ -91,6 +91,19 @@ BaysideMaps.initParksMowingMap = async function initParksMowingMap(opts = {}) {
     }
   }).addTo(map);
 
+    L.geoJSON(geojson, {
+  pointToLayer: (feature, latlng) => {
+    const id = (feature.properties.siteId || feature.properties.id);
+    const mk = L.marker(latlng, { title: id });
+    window.BS_registerSite(id, mk);   // <-- add this
+    return mk;
+  },
+  onEachFeature: (feature, layer) => {
+    const id = (feature.properties.siteId || feature.properties.id);
+    window.BS_registerSite(id, layer); // also catches polygons/lines
+  }
+}).addTo(map);
+
   if (fitBounds) {
     const b = layer.getBounds();
     if (b.isValid()) map.fitBounds(b.pad(0.05));
