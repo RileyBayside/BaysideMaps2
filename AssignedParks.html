@@ -735,22 +735,22 @@
 })();
   </script>
 
-  <!-- Inline routing + live follow-me tracking -->
   <script>
 (function(){
   function getMap(){
     return window.BS_MAP || window.__BS_map || window.map || window.leafletMap || null;
   }
 
-  let routingCtrl = null;
   let lastDest = null;
+  let userDot = null, userRing = null;
+  let watchId = null;
+  let isTracking = false;
+  let isFollowing = true;
 
   function ensureRouting(map){
-    if (routingCtrl) return routingCtrl;
-    routingCtrl = L.Routing.control({
-      router: L.Routing.osrmv1({
-        serviceUrl: 'https://router.project-osrm.org/route/v1'
-      }),
+    if (map._bsRouting) return map._bsRouting;
+    const rc = L.Routing.control({
+      router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
       waypoints: [],
       lineOptions: { extendToWaypoints:true, addWaypoints:false },
       addWaypoints:false,
@@ -762,16 +762,14 @@
       fitSelectedRoutes:true,
       createMarker: () => null
     }).addTo(map);
-    return routingCtrl;
+    map._bsRouting = rc;
+    return rc;
   }
 
-  // user location (blue dot + accuracy ring)
-  let watchId = null;
-  let isTracking = false;
-  let isFollowing = true;
-  let userDot = null, userRing = null;
-
   function setUserLocation(map, latlng, accuracy){
+    // keep last user position globally on the map for reuse
+    map._bsUserLast = latlng;
+
     if (!userDot){
       userDot = L.circleMarker(latlng, {
         radius:6, weight:2, color:'#1a73e8', fillColor:'#1a73e8', fillOpacity:1
@@ -786,10 +784,10 @@
     if (isFollowing) map.panTo(latlng, {animate:true});
 
     // keep route origin synced to live location
-    if (routingCtrl){
-      const wps = routingCtrl.getWaypoints();
+    if (map._bsRouting){
+      const wps = map._bsRouting.getWaypoints();
       const dest = lastDest || (wps[1] && wps[1].latLng) || null;
-      if (dest) routingCtrl.setWaypoints([ latlng, dest ]);
+      if (dest) map._bsRouting.setWaypoints([ latlng, dest ]);
     }
   }
 
@@ -809,9 +807,9 @@
     isTracking = false;
     if (watchId){ navigator.geolocation.clearWatch(watchId); watchId = null; }
   }
-
   function breakFollow(){ isFollowing = false; }
 
+  // Small control to toggle tracking
   const FollowControl = L.Control.extend({
     options: { position:'topleft' },
     onAdd: function(map){
@@ -835,6 +833,7 @@
     }
   });
 
+  // Add a “Route here” button inside every popup
   function onPopupOpen(e){
     const src = e.popup && e.popup._source;
     if (!src || !src.getLatLng) return;
@@ -850,11 +849,10 @@
     btn.addEventListener('click', () => {
       const map = getMap();
       const rc = ensureRouting(map);
-
       const useRoute = (origin) => { rc.setWaypoints([origin, dest]); rc.show(); lastDest = dest; };
 
-      if (userDot) {
-        useRoute(userDot.getLatLng());
+      if (map._bsUserLast) {
+        useRoute(map._bsUserLast);
       } else if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           p => {
@@ -873,6 +871,31 @@
     content.appendChild(btn);
   }
 
+  // Expose a global “route to” for sidebar buttons
+  window.BS_routeTo = function(lat, lng){
+    const map = getMap();
+    if (!map) return;
+    const rc = ensureRouting(map);
+    const dest = L.latLng(lat, lng);
+    const useRoute = (origin) => { rc.setWaypoints([origin, dest]); rc.show(); lastDest = dest; };
+
+    if (map._bsUserLast) { useRoute(map._bsUserLast); return; }
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        p => {
+          const ll = L.latLng(p.coords.latitude, p.coords.longitude);
+          setUserLocation(map, ll, p.coords.accuracy);
+          useRoute(ll);
+        },
+        _ => useRoute(map.getCenter()),
+        { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
+      );
+    } else {
+      useRoute(map.getCenter());
+    }
+  };
+
   (function boot(){
     const map = getMap();
     if (!map) return setTimeout(boot, 300);
@@ -889,7 +912,114 @@
     if (auto) { startTracking(map); isFollowing = true; }
   })();
 })();
-  </script>
+</script>
+
+  <script>
+(function(){
+  const idRx = /\bM\d{3,5}\b/i;
+  const up = s => String(s||'').trim().toUpperCase();
+
+  function getMap(){
+    return window.BS_MAP || window.__BS_map || window.map || window.leafletMap || null;
+  }
+  function isMarker(l){ return l instanceof L.Marker; }
+
+  // Build an index sid -> marker (persists even if marker is later removed from the map)
+  const MARKER_BY_ID = {};
+  function siteIdFromMarker(m){
+    if (!m) return null;
+    if (m.options && m.options.siteId) return up(m.options.siteId);
+    if (m.options && m.options.title){
+      const mm = String(m.options.title).toUpperCase().match(idRx);
+      if (mm) return mm[0];
+    }
+    if (typeof m.getTooltip === 'function' && m.getTooltip()){
+      const txt = m.getTooltip().getContent();
+      const mm  = String(txt||'').toUpperCase().match(idRx);
+      if (mm) return mm[0];
+    }
+    const txt = (m._icon && m._icon.textContent) ? m._icon.textContent : '';
+    const mm = String(txt||'').toUpperCase().match(idRx);
+    return mm ? mm[0] : null;
+  }
+  function indexExistingMarkers(map){
+    for (const k in map._layers){
+      const lyr = map._layers[k];
+      if (!isMarker(lyr)) continue;
+      const sid = siteIdFromMarker(lyr);
+      if (sid) MARKER_BY_ID[sid] = lyr;
+    }
+  }
+  function attachLayerAdd(map){
+    map.on('layeradd', e=>{
+      const l = e.layer;
+      if (!isMarker(l)) return;
+      const sid = siteIdFromMarker(l);
+      if (sid) MARKER_BY_ID[sid] = l;
+    });
+  }
+
+  function findSiteIdFromRow(el){
+    if (!el) return null;
+    if (el.dataset && el.dataset.siteId) return up(el.dataset.siteId);
+    const m = (el.textContent||'').toUpperCase().match(idRx);
+    return m ? m[0] : null;
+  }
+
+  function injectButtons(){
+    const root = document.getElementById('sidebar-content');
+    if (!root) return;
+
+    const rows = root.querySelectorAll('li, .list-item, .sidebar-row, .item, div');
+    rows.forEach(row=>{
+      if (row.querySelector('.bs-nav-btn')) return; // already added
+      const sid = findSiteIdFromRow(row);
+      if (!sid) return;
+
+      const btn = document.createElement('button');
+      btn.type='button';
+      btn.className='nav-inline-btn bs-nav-btn';
+      btn.textContent='Navigate';
+      btn.style.marginLeft = 'auto';
+
+      btn.addEventListener('click', ()=>{
+        const map = getMap();
+        if (!map) return;
+        const marker = MARKER_BY_ID[sid];
+        const ll = marker?.getLatLng?.();
+        if (!ll){
+          alert(`Sorry, couldn't find coordinates for ${sid} yet. Try zooming the map or opening the marker first.`);
+          return;
+        }
+        window.BS_routeTo(ll.lat, ll.lng);
+      });
+
+      row.appendChild(btn);
+    });
+  }
+
+  function start(){
+    const map = getMap();
+    if (!map) return setTimeout(start, 300);
+
+    // Index markers now and as they appear
+    indexExistingMarkers(map);
+    attachLayerAdd(map);
+
+    // Inject once, and watch for sidebar changes
+    injectButtons();
+    const root = document.getElementById('sidebar-content');
+    if (root){
+      const mo = new MutationObserver(()=>injectButtons());
+      mo.observe(root, { childList:true, subtree:true });
+      // a few initial passes to catch async render
+      setTimeout(injectButtons, 300);
+      setTimeout(injectButtons, 1200);
+    }
+  }
+  start();
+})();
+</script>
 
 </body>
 </html>
