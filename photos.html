@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Site Photos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="logo.png" type="image/png" />
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    :root{
+      --ink:#0f172a; --muted:#e5e7eb; --card:#ffffff;
+      --accent:#d11e2b; --accent-600:#b71a24; --soft:#f8fafc;
+      --danger:#b91c1c; --alt:#475569; --ring:#0ea5e9;
+    }
+    body{ background:#f6f7fb; color:#0f172a; font-family:Inter,system-ui,Arial,sans-serif }
+    .container{ max-width:1100px; margin:28px auto; padding:0 16px }
+    h1{ font-size:28px; font-weight:800; margin:0 0 16px }
+    .back{ float:right; font-weight:800; margin-top:-4px; }
+
+    .toolbar{
+      display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+      background:#fff; border:1px solid var(--muted); border-radius:12px; padding:10px;
+      box-shadow:0 8px 26px rgba(16,24,40,.06);
+    }
+    .toolbar input[type="text"], .toolbar select, .toolbar input[type="date"]{
+      appearance:none; border:1px solid var(--muted); border-radius:10px; background:#fff;
+      padding:8px 10px; font-weight:600; color:#111827;
+    }
+    .btn{ border:0; border-radius:10px; padding:8px 14px; font-weight:800; cursor:pointer; }
+    .btn-apply{ background:var(--accent); color:#fff }
+    .btn-apply:hover{ background:var(--accent-600) }
+    .btn-clear{ background:#111827; color:#fff }
+    .btn-alt{ background:var(--alt); color:#fff }
+    .btn-danger{ background:var(--danger); color:#fff }
+    .btn[disabled]{ opacity:.5; cursor:not-allowed }
+    .btn-active{ outline:2px solid var(--ring); }
+
+    .meta{ margin-left:auto; font-size:12px; color:#475569 }
+
+    .grid{ margin-top:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:12px; }
+    .card{
+      position:relative;
+      background:#fff; border:1px solid var(--muted); border-radius:12px; overflow:hidden;
+      box-shadow:0 8px 26px rgba(16,24,40,.06); cursor:pointer; transition:outline-color .12s;
+    }
+    .card.selected{ outline:3px solid var(--ring); }
+    .card .check{
+      position:absolute; top:8px; right:8px; background:var(--ring); color:#fff; border-radius:999px;
+      font-weight:900; font-size:12px; padding:2px 7px; display:none;
+    }
+    .card.selected .check{ display:inline-block; }
+
+    .card img{ width:100%; height:160px; object-fit:cover; display:block }
+    .card img.broken{ background:#f1f5f9; object-fit:contain; padding:24px }
+    .card .info{ padding:8px 10px; display:grid; gap:4px; font-weight:700 }
+    .pill{ display:inline-block; background:#f1f5f9; border:1px solid #e5e7eb; border-radius:999px; padding:2px 8px; font-size:12px }
+    .empty{ margin:18px 2px; color:#64748b; font-weight:700 }
+
+    /* Modal viewer */
+    #photoModal {
+      position: fixed; inset: 0; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(15,23,42,.6); z-index: 1000;
+    }
+    #photoModal.open { display: flex; }
+    #photoModal .panel{
+      background:#fff; border-radius:12px; width:min(1000px,92vw);
+      max-height:90vh; overflow:hidden; box-shadow:0 12px 28px rgba(16,24,40,.25);
+      display:flex; flex-direction:column;
+    }
+    #photoModal .viewer{
+      background:#000; display:flex; align-items:center; justify-content:center;
+      min-height:50vh;
+    }
+    #photoModal .viewer img{
+      max-width:100%; max-height:80vh; object-fit:contain; display:block;
+    }
+    #photoModal .bar{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:10px 12px; border-top:1px solid #e5e7eb;
+    }
+    #photoModal .bar .meta{ font-weight:700; color:#111827 }
+    #photoModal .bar .actions{ display:flex; gap:8px }
+    #photoModal .btn{ border:0; border-radius:10px; padding:8px 12px; font-weight:800; cursor:pointer; }
+    #photoModal .btn-primary{ background:#111827; color:#fff }
+    #photoModal .btn-accent{ background:#d11e2b; color:#fff }
+  </style>
+</head>
+<body>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
+
+  <div class="container">
+    <a href="admin.html" class="back">← Back to Admin</a>
+    <h1>Site Photos</h1>
+
+    <div class="toolbar">
+      <input id="siteIdInput" type="text" placeholder="Site ID (e.g., M0123)" />
+      <select id="operatorInput">
+        <option value="">Any operator</option>
+      </select>
+      <input id="startInput" type="date" />
+      <input id="endInput" type="date" />
+      <select id="limitInput">
+        <option value="24">Limit 24</option>
+        <option value="60">Limit 60</option>
+        <option value="120">Limit 120</option>
+        <option value="200">Limit 200</option>
+      </select>
+      <button class="btn btn-apply" id="applyBtn">Apply</button>
+      <button class="btn btn-clear" id="clearBtn">Clear</button>
+
+      <!-- Admin-only bulk controls -->
+      <button class="btn btn-alt" id="selectBtn" style="display:none">Select</button>
+      <button class="btn btn-danger" id="deleteBtn" style="display:none" disabled>Delete</button>
+
+      <div id="whoami" class="meta"></div>
+    </div>
+
+    <div id="results" class="grid"></div>
+    <div id="empty" class="empty" style="display:none">No photos found for these filters.</div>
+  </div>
+
+  <!-- Photo modal -->
+  <div id="photoModal" aria-hidden="true">
+    <div class="panel" role="dialog" aria-modal="true">
+      <div class="viewer"><img id="modalImg" alt="Site photo" /></div>
+      <div class="bar">
+        <div class="meta" id="modalMeta"></div>
+        <div class="actions">
+          <a id="modalOpen" target="_blank" rel="noopener" class="btn btn-primary">Open original</a>
+          <a id="modalDownload" class="btn btn-accent" download>Download</a>
+          <button id="modalClose" class="btn">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+    const auth = firebase.auth();
+
+    // ---- AEST helpers (Brisbane, no DST) ----
+    function toDateFromISO(d) {
+      if (!d) return new Date();
+      const [y,m,day] = String(d).split('-').map(Number);
+      if (y && m && day) return new Date(Date.UTC(y, m-1, day, 14, 0, 0)); // maps to 00:00 AEST
+      return new Date();
+    }
+    function aestRange(startISO, endISO) {
+      const start = toDateFromISO(startISO);
+      const end   = toDateFromISO(endISO);
+      const START = new Date(start.getTime() - 10*60*60*1000);                        // AEST=UTC+10
+      const END   = new Date(end.getTime() - 10*60*60*1000 + 24*60*60*1000);          // inclusive end
+      return { START, END };
+    }
+    const fmtAEST = (ms) =>
+      new Date(ms).toLocaleString('en-AU', { timeZone:'Australia/Brisbane', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+    function upper(s){ return String(s||'').trim().toUpperCase(); }
+    const iso = (d) => d.toISOString().slice(0,10);
+
+    // ---- UI elements ----
+    const siteIdInput  = document.getElementById('siteIdInput');
+    const operatorSel  = document.getElementById('operatorInput');
+    const startInput   = document.getElementById('startInput');
+    const endInput     = document.getElementById('endInput');
+    const limitInput   = document.getElementById('limitInput');
+    const applyBtn     = document.getElementById('applyBtn');
+    const clearBtn     = document.getElementById('clearBtn');
+    const selectBtn    = document.getElementById('selectBtn');
+    const deleteBtn    = document.getElementById('deleteBtn');
+    const resultsEl    = document.getElementById('results');
+    const emptyEl      = document.getElementById('empty');
+    const whoami       = document.getElementById('whoami');
+
+    // --- default date window: last 30 days -> today (recomputed every load) ---
+    (function setDefaultDates(){
+      const today = new Date();
+      const d30   = new Date(today.getTime() - 29*24*60*60*1000);
+      startInput.value = iso(d30);
+      endInput.value   = iso(today);
+    })();
+
+    // --- selection state ---
+    let isAdmin = false;
+    let selectMode = false;
+    const selected = new Set();      // ids
+    const photoById = new Map();     // id -> photo object
+
+    function updateDeleteButton(){
+      deleteBtn.textContent = selected.size ? `Delete (${selected.size})` : 'Delete';
+      deleteBtn.disabled = selected.size === 0;
+    }
+    function exitSelectMode(){
+      selectMode = false;
+      selected.clear();
+      updateDeleteButton();
+      selectBtn.classList.remove('btn-active');
+      // remove selection styling
+      document.querySelectorAll('.card.selected').forEach(el => el.classList.remove('selected'));
+    }
+    function toggleSelect(id, card){
+      if (selected.has(id)) { selected.delete(id); card.classList.remove('selected'); }
+      else { selected.add(id); card.classList.add('selected'); }
+      updateDeleteButton();
+    }
+
+    // --- Render list (thumbnails only) ---
+    function render(photos){
+      photoById.clear();
+      resultsEl.innerHTML = '';
+      if (!photos.length){
+        emptyEl.style.display = '';
+        return;
+      }
+      emptyEl.style.display = 'none';
+
+      for (const p of photos){
+        photoById.set(p.id, p);
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.id = p.id;
+        if (selected.has(p.id)) card.classList.add('selected');
+
+        const tick = document.createElement('div');
+        tick.className = 'check';
+        tick.textContent = '✓';
+        card.appendChild(tick);
+
+        const img = document.createElement('img');
+        img.src = p.url;
+        img.alt = p.siteId || 'Site photo';
+        img.loading = 'lazy';
+        img.onerror = () => img.classList.add('broken');
+        card.appendChild(img);
+
+        const info = document.createElement('div');
+        info.className = 'info';
+        const line1 = document.createElement('div');
+        line1.innerHTML = `<span class="pill">${p.siteId || 'UNKNOWN'}</span> ${p.when || ''}`;
+        const line2 = document.createElement('div');
+        line2.innerHTML = `<span class="pill">By</span> ${p.operatorEmail || p.uploadedBy || p.operatorUid || 'unknown'}`;
+        info.appendChild(line1);
+        info.appendChild(line2);
+        card.appendChild(info);
+
+        card.addEventListener('click', () => {
+          if (selectMode) {
+            toggleSelect(p.id, card);
+          } else {
+            openPhotoModal(p);
+          }
+        });
+
+        resultsEl.appendChild(card);
+      }
+    }
+
+    // --- Modal helpers ---
+    function fileNameFromPath(s){
+      const t = String(s||''); const ix = t.lastIndexOf('/'); return ix >= 0 ? t.slice(ix+1) : (t || 'photo.jpg');
+    }
+    function openPhotoModal(p){
+      const modal = document.getElementById('photoModal');
+      const img   = document.getElementById('modalImg');
+      const meta  = document.getElementById('modalMeta');
+      const openL = document.getElementById('modalOpen');
+      const dlL   = document.getElementById('modalDownload');
+
+      img.src = p.url;
+      meta.textContent = `${p.siteId || ''}  ${p.when || ''}  —  ${p.operatorEmail || p.uploadedBy || p.operatorUid || ''}`;
+      openL.href = p.url;
+      dlL.href   = p.url;
+      dlL.setAttribute('download', fileNameFromPath(p.storagePath) || 'photo.jpg');
+
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden','false');
+      document.body.style.overflow = 'hidden';
+    }
+    (function wireModal(){
+      const modal = document.getElementById('photoModal');
+      const close = document.getElementById('modalClose');
+      function closeModal(){
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden','true');
+        document.body.style.overflow = '';
+      }
+      close.addEventListener('click', closeModal);
+      modal.addEventListener('click', (e)=>{ if (e.target === modal) closeModal(); });
+      window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+    })();
+
+    // --- Normalize Firestore doc -> UI object ---
+    function normalize(doc){
+      const d = doc.data() || {};
+      const ts = d.createdAt?.toDate?.() || d.timestamp?.toDate?.() || null;
+      const whenTs = ts ? ts.getTime() : 0;
+      const when = whenTs ? fmtAEST(whenTs) : '';
+      return {
+        id: doc.id,
+        url: d.url || d.downloadURL || '',
+        storagePath: d.storagePath || d.path || '',
+        siteId: upper(d.siteId || d.site_id || ''),
+        uploadedBy: d.uploadedBy || d.uploader || null,
+        operatorUid: d.operatorUid || d.userId || null,
+        operatorEmail: d.operatorEmail || d.uEmail || null,
+        whenTs, when
+      };
+    }
+
+    // --- Load from site_photos only (handles createdAt or timestamp) ---
+    async function load(){
+      const limitN    = parseInt(limitInput.value || '24', 10);
+      const siteFilter= upper(siteIdInput.value);
+      const opFilter  = operatorSel.value || '';
+      const { START, END } = aestRange(startInput.value, endInput.value);
+
+      let snap;
+      try {
+        snap = await db.collection('site_photos')
+          .orderBy('createdAt','desc')
+          .where('createdAt','>=', START).where('createdAt','<', END)
+          .limit(limitN * 5)
+          .get();
+      } catch (e1) {
+        // fallback: timestamp field
+        snap = await db.collection('site_photos')
+          .orderBy('timestamp','desc')
+          .where('timestamp','>=', START).where('timestamp','<', END)
+          .limit(limitN * 5)
+          .get();
+      }
+
+      const all = [];
+      snap.forEach(d => all.push(normalize(d)));
+
+      // client filters + sort newest first
+      let filtered = all.filter(p => {
+        const inRange = (p.whenTs >= START.getTime() && p.whenTs < END.getTime()) || p.whenTs === 0;
+        if (!inRange) return false;
+        if (siteFilter && p.siteId !== siteFilter) return false;
+        if (opFilter) {
+          const txt = (p.operatorEmail || p.uploadedBy || p.operatorUid || '').toString().toLowerCase();
+          if (!txt.includes(opFilter.toLowerCase())) return false;
+        }
+        return p.url;
+      });
+      filtered.sort((x,y)=> y.whenTs - x.whenTs);
+
+      render(filtered.slice(0, limitN));
+
+      // Populate operator dropdown (first load only)
+      if (operatorSel.children.length === 1) {
+        const ops = new Set();
+        all.slice(0, 300).forEach(p => {
+          const s = (p.operatorEmail || p.uploadedBy || p.operatorUid || '').toString();
+          if (s) ops.add(s);
+        });
+        [...ops].slice(0,80).forEach(v=>{
+          const opt = document.createElement('option');
+          opt.value = v; opt.textContent = v;
+          operatorSel.appendChild(opt);
+        });
+      }
+    }
+
+    // --- Bulk delete ---
+    async function bulkDelete(){
+      if (!isAdmin || selected.size === 0) return;
+      const n = selected.size;
+      if (!confirm(`Delete ${n} photo${n>1?'s':''}? This cannot be undone.`)) return;
+
+      const ids = [...selected];
+      let ok=0, fail=0;
+
+      for (const id of ids){
+        const p = photoById.get(id) || {};
+        try {
+          await db.collection('site_photos').doc(id).delete();
+          ok++;
+        } catch (e) {
+          console.error('Doc delete failed', id, e);
+          fail++; continue;
+        }
+        // Best-effort: delete file in Storage if path known
+        if (p.storagePath){
+          try { await storage.ref(p.storagePath).delete(); }
+          catch (e) { console.warn('Storage delete failed', p.storagePath, e); }
+        }
+        const el = document.querySelector(`.card[data-id="${id}"]`);
+        if (el) el.remove();
+        photoById.delete(id);
+      }
+
+      exitSelectMode();
+      await load();
+      alert(`Deleted ${ok}/${n} photo${n>1?'s':''}.`);
+    }
+
+    // Wire UI
+    applyBtn.addEventListener('click', load);
+    clearBtn.addEventListener('click', () => {
+      siteIdInput.value = '';
+      operatorSel.value = '';
+      const today = new Date();
+      const d30   = new Date(today.getTime() - 29*24*60*60*1000);
+      startInput.value = iso(d30);
+      endInput.value   = iso(today);
+      load();
+    });
+    selectBtn.addEventListener('click', () => {
+      if (!isAdmin) return;
+      selectMode = !selectMode;
+      selectBtn.classList.toggle('btn-active', selectMode);
+      if (!selectMode) exitSelectMode();
+    });
+    deleteBtn.addEventListener('click', bulkDelete);
+
+    // Start after auth (shows whoami + ensures rules let us list; also detect admin)
+    auth.onAuthStateChanged(async (u) => {
+      whoami.textContent = u?.email || '';
+
+      isAdmin = false;
+      if (u) {
+        try {
+          const s = await db.collection('users').doc(u.uid).get();
+          const role = s.data()?.role;
+          isAdmin = ['admin','owner','manager'].includes(String(role||'').toLowerCase());
+        } catch {}
+      }
+      // Show/hide admin-only controls
+      selectBtn.style.display = isAdmin ? '' : 'none';
+      deleteBtn.style.display = isAdmin ? '' : 'none';
+
+      load();
+    });
+  })();
+  </script>
+</body>
+</html>

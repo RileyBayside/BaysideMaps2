@@ -1,52 +1,130 @@
-
-    <script src="auth.js"></script>
-    <script>BaysideAuth.enforceGate();</script>
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Parks Snipping</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="logo.png" type="image/png">
-  
-  <!-- Core Styles -->
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  
-  <!-- Sidebar Styles -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bayside — Parks Snipping</title>
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="sidebar.css">
-  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="auth.js"></script>
+  <script>window.BaysideAuth && BaysideAuth.enforceGate();</script>
   <style>
-    #map { height: 100vh; }
+    html,body,#map { height:100%; margin:0; }
+    .sidebar { position:absolute; top:10px; left:10px; background:#fff; border-radius:12px; padding:12px; box-shadow:0 6px 20px rgba(0,0,0,.12); width:300px; z-index:1000; }
+    .sidebar h2 { margin:0 0 8px; font-size:18px; }
+    .sidebar button, .sidebar input[type="text"] {
+      display:block; width:100%; margin:6px 0; padding:10px; border-radius:10px; border:1px solid #e5e7eb; background:#fff;
+    }
+    .small { font-size:12px; color:#6b7280; }
   </style>
 </head>
 <body>
-  <!-- Sidebar toggle button -->
-  <button id="sidebar-toggle">☰</button>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
   
-  <!-- Sidebar container -->
-  <div id="sidebar">
-  <button id="toggle-all">Expand All</button>
-    <div id="sidebar-content"></div>
-    <button onclick="adminLogin()">Admin Login</button>
-      <button onclick="exportPDFCouncil()">PDF report for Council</button>
-      <button onclick="exportPDFBayside()">PDF Report for Bayside</button>
-
-      <button onclick="clearUserData()">Clear All User Data</button>
-      
-      <button onclick="showToday()">Show Completed Today</button>
-    </div>
-  </div>
-
-  <!-- Map container -->
   <div id="map"></div>
 
-  <!-- Core Scripts -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="script.js"></script>
-  
-  <!-- Sidebar Script -->
+  <div class="sidebar">
+    <img src="logo.png" alt="Bayside" style="height:40px; display:block; margin-bottom:8px;">
+    <h2>Parks Snipping</h2>
+
+    <!-- Search -->
+    <input id="search" type="text" placeholder="Search e.g. M0123 or 123">
+    <button onclick="performSearch()">Search</button>
+
+    <!-- Admin -->
+    <button onclick="adminLogin()">Admin Login</button>
+
+    <!-- ADMIN TOOLS: hidden by default; revealed only by adminLogin() -->
+    <div id="admin-tools" style="display:none">
+      <button onclick="exportPDFCouncil()">PDF report for Council</button>
+      <button onclick="exportPDFBayside()">PDF Report for Bayside</button>
+      <button onclick="clearUserData()">Clear All User Data</button>
+      <button onclick="showToday()">Show Completed Today</button>
+      <div class="small">Operator: <span id="opName">Unknown</span></div>
+    </div>
+
+    <hr/>
+    <a href="index.html">Back to Dashboard</a>
+  </div>
+
+  <!-- Leaflet + your scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="sidebar.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="script.js"></script>
+
+  <script>
+    // Fill operator label; do NOT auto-show admin tools.
+    document.addEventListener('DOMContentLoaded', function () {
+      var name = (window.BaysideAuth && BaysideAuth.getUserName && BaysideAuth.getUserName()) || 'Unknown';
+      var el = document.getElementById('opName');
+      if (el) el.textContent = name;
+    });
+
+    // Basic helpers (hooks to your existing code)
+    function performSearch() {
+      var q = (document.getElementById('search').value || '').trim();
+      if (window.doSearch) { window.doSearch(q); }
+    }
+    function clearUserData() {
+      try { localStorage.clear(); } catch(e){}
+      if (window.BaysideAuth && BaysideAuth.clear) BaysideAuth.clear();
+      location.href = 'login.html';
+    }
+  </script>
+
+  <script>
+/* Auto-run the existing PDF functions based on a query param.
+   Usage:
+   - parksmowing.html?autopdf=council
+   - parksmowing.html?autopdf=bayside
+*/
+(function () {
+  const params = new URLSearchParams(location.search);
+  const mode = (params.get('autopdf') || '').toLowerCase(); // 'council' | 'bayside'
+
+  if (!mode) return;
+
+  // small helpers
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // Wait for auth, then wait until the export functions exist, then run
+  firebase.auth().onAuthStateChanged(async (user) => {
+    if (!user) {
+      // if your login flow supports redirect back, keep it; otherwise just push to login
+      location.href = 'login.html?redirect=' + encodeURIComponent(location.href);
+      return;
+    }
+
+    // Wait until the functions are available (script/sidebars sometimes load async)
+    let tries = 0;
+    while (!(window.exportPDFCouncil && window.exportPDFBayside) && tries < 50) {
+      await sleep(200);
+      tries++;
+    }
+
+    try {
+      // tiny extra delay so data/maps finish loading if needed
+      await sleep(500);
+      if (mode === 'council') {
+        await window.exportPDFCouncil();
+      } else if (mode === 'bayside') {
+        await window.exportPDFBayside();
+      } else {
+        console.warn('Unknown autopdf mode:', mode);
+      }
+    } catch (e) {
+      console.error('Auto PDF generation failed:', e);
+      alert('Auto PDF generation failed: ' + (e.message || e));
+    }
+  });
+})();
+</script>
+
 </body>
 </html>

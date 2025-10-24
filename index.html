@@ -3,71 +3,536 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bayside — Dashboard</title>
-  <link rel="icon" href="logo.png">
-  <link rel="stylesheet" href="index.css">
-  <script src="auth.js"></script>
-  <script>window.BaysideAuth && BaysideAuth.enforceGate && BaysideAuth.enforceGate();</script>
+  <title>Bayside – Dashboard</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css?v=2025-10-23">
+
+  <!-- Page-specific styles for the Tasks card + RA modal -->
+  <style>
+    :root{
+      --ink:#0f172a; --muted:#e5e7eb; --bg:#f6f7fb; --card:#ffffff;
+      --accent:#d11e2b; --accent-600:#b71a24;
+    }
+    .card{ background:var(--card); border:1px solid var(--muted); border-radius:16px; box-shadow:0 8px 26px rgba(16,24,40,.08); }
+    .card h3{ margin:14px 16px 10px; font-size:16px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:10px; }
+    .card h3::before{ content:""; width:10px; height:10px; border-radius:50%; background:var(--accent); display:inline-block; }
+    .card .body{ padding:0 16px 16px; }
+    .tasks-list{ display:grid; gap:8px; }
+    .task-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+    .task-main{ display:flex; flex-direction:column; flex:1 1 auto; min-width:0; }
+    .task-title{ font-weight:800; color:#111827; }
+    .task-meta{ color:#64748b; font-size:13px; margin-top:2px; }
+    .badge{ border-radius:999px; padding:4px 8px; font-weight:800; font-size:12px; white-space:nowrap; }
+    .badge-amber{ background:#fee2e2; color:#7f1d1d; border:1px solid #fecaca; }
+    .badge-slate{ background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+    .task-note{ margin-top:6px; padding:8px 10px; background:#f8fafc; border-left:3px solid var(--accent); border-radius:8px; color:#334155; font-size:13px; white-space:pre-wrap; }
+    .task-actions{ display:inline-flex; align-items:center; gap:8px; flex-shrink:0; white-space:nowrap; }
+    .btn-small{ padding:6px 10px; font-size:13px; border-radius:8px; }
+
+    /* RA modal */
+    .ra-backdrop{ position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:center; justify-content:center; z-index:9999; }
+    .ra-backdrop.show{ display:flex; }
+    .ra-modal{ width:min(900px,94vw); max-height:90vh; overflow:auto; background:#fff; border:1px solid var(--muted); border-radius:16px; box-shadow:0 16px 44px rgba(16,24,40,.35); }
+    .ra-header{ position:sticky; top:0; background:#fff; border-bottom:1px solid #eef2f7; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .ra-header h3{ margin:0; font-size:18px; font-weight:800; color:#0f172a; }
+    .ra-body{ padding:16px; display:grid; gap:12px; }
+    .ra-row{ display:flex; align-items:flex-start; gap:10px; }
+    .ra-note{ font-size:13px; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-left:3px solid var(--accent); border-radius:8px; padding:8px 10px; }
+    .ra-name{ width:100%; max-width:360px; padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; font-weight:600; }
+    .ra-footer{ position:sticky; bottom:0; background:#fff; border-top:1px solid #eef2f7; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .ra-btn{ border:0; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; color:#fff; background:var(--accent); }
+    .ra-btn:disabled{ opacity:.5; cursor:not-allowed; }
+    .ra-pill{ display:inline-block; padding:4px 8px; border-radius:999px; font-weight:800; font-size:12px; background:#f1f5f9; border:1px solid #e2e8f0; color:#334155; }
+    .ra-brand{ display:flex; align-items:center; gap:10px; }
+    .ra-brand img{ height:28px; }
+  </style>
 </head>
 <body>
-  <!-- Header -->
-  <div class="header">
-    <img src="logo.png" alt="Bayside Slashing & Maintenance">
-    <div class="brand">Bayside Slashing &amp; Maintenance</div>
-  </div>
 
-  <div class="container">
-    <!-- Hero / Greeting -->
-    <div class="hero">
-      <div class="left">
-        <div class="kicker">DASHBOARD</div>
-        <h1>Welcome, <span id="who" class="name">Operator</span></h1>
-        <p>Choose a workspace to get started.</p>
-        <div class="quick">
-          <a href="ParksMowing.html">Parks Mowing</a>
-          <a href="ParksSnipping.html">Parks Snipping</a>
-          <a href="Firebreaks.html">Firebreaks</a>
+  <!-- Firebase + guard -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js?v=2025-10-23"></script>
+  <script src="auth-guard.js?v=2025-10-23"></script>
+
+  <!-- Risk Assessment Modal -->
+  <div id="riskBackdrop" class="ra-backdrop" aria-modal="true" role="dialog" aria-hidden="true">
+    <div class="ra-modal">
+      <div class="ra-header">
+        <div class="ra-brand">
+          <img src="logo.png" alt="Logo" onerror="this.style.display='none'">
+          <h3>Daily Risk Assessment</h3>
+        </div>
+        <span class="ra-pill" id="raDatePill"></span>
+      </div>
+
+      <div class="ra-body">
+        <div class="ra-note">Please confirm you have reviewed site risks and are fit for duty. You must complete this form to proceed.</div>
+
+        <div class="ra-list">
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="ppe"><span>I am wearing required PPE (hi-vis, boots, eye/ear protection).</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="equipment"><span>Equipment has been inspected and is safe to operate.</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="hazards"><span>I have checked site hazards (terrain, public, wildlife, overhead/underground services).</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="traffic"><span>Traffic/pedestrian controls are in place where required.</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="weather"><span>Weather conditions are suitable and I will stop work if they become unsafe.</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="swms"><span>I have read and will follow the relevant SWMS / SOP for this task.</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="fitness"><span>I am fit for work (not fatigued / impaired).</span></label>
+          <label class="ra-row"><input type="checkbox" class="ra-check" data-key="stopwork"><span>I understand I must exercise Stop-Work authority if unsafe conditions arise.</span></label>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <label for="raName"><strong>Operator name</strong></label>
+          <input id="raName" class="ra-name" type="text" placeholder="Type your full name">
         </div>
       </div>
-      <div class="right">
-        <span class="badge" title="Logged in user">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a5 5 0 0 0-1 9.9V14H7a5 5 0 1 0 0 10h10a5 5 0 1 0 0-10h-4v-2.1A5 5 0 0 0 12 2z"/></svg>
-          <span id="whoBadge">Operator</span>
-        </span>
+
+      <div class="ra-footer">
+        <div class="ra-sub" id="raStatus">Please tick all boxes and enter your name to continue.</div>
+        <button id="raAgreeBtn" class="ra-btn" disabled>Agree & Proceed</button>
       </div>
     </div>
-
-    <!-- App cards -->
-    <div class="grid">
-      <a class="card" href="ParksMowing.html">
-        <h3>Parks Mowing</h3>
-        <p>Map, search and reporting for parks mowing.</p>
-        <span class="pill">Go →</span>
-      </a>
-      <a class="card" href="ParksSnipping.html">
-        <h3>Parks Snipping</h3>
-        <p>Map, search and reporting for snipping operations.</p>
-        <span class="pill">Go →</span>
-      </a>
-      <a class="card" href="Firebreaks.html">
-        <h3>Firebreaks</h3>
-        <p>Firebreak mapping and reporting.</p>
-        <span class="pill">Go →</span>
-      </a>
-    </div>
-
-    <div class="footer">© Bayside Slashing & Maintenance</div>
   </div>
 
+  <!-- Header -->
+  <header class="appbar">
+    <div class="appbar__left">
+      <img class="logo" src="logo.png" alt="Bayside Slashing" />
+      <h1 class="appbar__title">Dashboard</h1>
+    </div>
+
+    <div class="appbar__right">
+      <span class="user-pill" id="user-email">user@bayside.local</span>
+      <button class="btn btn-outline" id="logoutBtn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Tasks first -->
+    <section class="card" id="tasksCard" style="margin-bottom:18px">
+      <h3>Tasks to complete</h3>
+      <div class="body">
+        <div id="tasks-list" class="tasks-list"></div>
+      </div>
+    </section>
+
+    <!-- Maps -->
+    <section class="section">
+      <h2 class="section-title">Maps</h2>
+
+      <div class="cards-row">
+        <a href="./ParksMowing.html" class="work-card">
+          <div class="work-card__img"><img src="MOWING PICTURE.png" alt="Parks Mowing map" /></div>
+          <div class="work-card__footer"><span class="work-card__title">Parks Mowing</span><span class="btn btn-dark">Open</span></div>
+        </a>
+
+        <a href="./ParksSnipping.html" class="work-card">
+          <div class="work-card__img"><img src="SNIPPING PICTURE.png" alt="Parks Snipping map" /></div>
+          <div class="work-card__footer"><span class="work-card__title">Parks Snipping</span><span class="btn btn-dark">Open</span></div>
+        </a>
+
+        <a href="./Firebreaks.html" class="work-card">
+          <div class="work-card__img"><img src="FIREBREAKS PICTURE.png" alt="Firebreaks map" /></div>
+          <div class="work-card__footer"><span class="work-card__title">Firebreaks</span><span class="btn btn-dark">Open</span></div>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer-space"></footer>
+
+  <!-- Display name + logout -->
   <script>
-    // Show logged-in name in two places
     (function () {
-      var name = (window.BaysideAuth && BaysideAuth.getUserName && BaysideAuth.getUserName()) || "Operator";
-      var who = document.getElementById("who");
-      var whoBadge = document.getElementById("whoBadge");
-      if (who) who.textContent = name;
-      if (whoBadge) whoBadge.textContent = name;
+      async function setDisplayName(u) {
+        const el = document.getElementById('user-email');
+        if (!el) return;
+
+        el.textContent = 'Signed in';
+        try {
+          const snap = await firebase.firestore().collection('users').doc(u.uid).get();
+          const d = snap.data() || {};
+          const display = d.name || d.username || u.displayName || (u.email ? u.email.split('@')[0] : '') || u.email || u.uid;
+          el.textContent = display;
+        } catch {
+          el.textContent = u.displayName || (u.email ? u.email.split('@')[0] : '') || u.email || u.uid;
+        }
+      }
+
+      firebase.auth().onAuthStateChanged((u) => { if (u) setDisplayName(u); });
+
+      window.logout = async function () {
+        try { await firebase.auth().signOut(); } catch (e) { console.warn(e); }
+        try { sessionStorage.removeItem('bayside_next'); localStorage.removeItem('bayside_next'); } catch {}
+        location.replace('./login.html');
+      };
+
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.addEventListener('click', () => window.logout());
     })();
   </script>
+
+  <!-- Live “remaining” counter -->
+  <script>
+  (function () {
+    const db = firebase.firestore();
+
+    const up = (x) => String(x || '').trim().toUpperCase();
+
+    function parseIdList(list){
+      if (!list) return [];
+      if (Array.isArray(list)) return list.map(up).filter(Boolean);
+      return String(list).split(/[\s,]+/g).map(up).filter(Boolean);
+    }
+    function baseIdsFromTask(t){
+      if (Array.isArray(t.siteIds)) return parseIdList(t.siteIds);
+      if (t.sites && typeof t.sites === 'object') return Object.keys(t.sites).map(up);
+      if (t.siteList) return parseIdList(t.siteList);
+      return [];
+    }
+    function getPerSiteForId(perSite, rawId){
+      if (!perSite) return undefined;
+      const idU = up(rawId);
+      const idL = idU.toLowerCase();
+      const noM = idU.replace(/^M/,'');
+      return perSite[idU] ?? perSite[idL] ?? perSite[noM];
+    }
+    function zoneTitle(t){
+      const zNum = t.zoneNumber ?? t.zoneNo ?? t.zoneNum ?? null;
+      const zName = t.zoneName ?? t.area ?? t.suburb ?? t.region ?? null;
+      const zStr  = (typeof t.zone === 'string') ? t.zone.trim() : null;
+      if (zStr && /^zone\s*\d+/i.test(zStr)) return zStr.replace(/\s*-\s*/,' - ');
+      if (zNum && zName) return `Zone ${zNum} - ${zName}`;
+      if (zNum) return `Zone ${zNum}`;
+      if (zName) return zName;
+      return zStr || 'Task';
+    }
+
+    async function markTaskStarted(taskId) {
+      const uid = firebase.auth().currentUser?.uid || null;
+      const ref = db.collection('assignments').doc(taskId);
+      try {
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return;
+          const d = snap.data() || {};
+          if (d.status === 'completed') return;
+          if (d.status !== 'in_progress') {
+            tx.update(ref, {
+              status: 'in_progress',
+              startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              startedBy: uid
+            });
+          } else {
+            tx.update(ref, { lastOpenedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          }
+        });
+      } catch (e) { console.warn('markTaskStarted failed:', e); }
+    }
+
+    const taskStreams = new Map();
+    let latestTasks = [];
+
+    function ensureTaskStreams(task){
+      const ids = Array.from(new Set(baseIdsFromTask(task)));
+      let st = taskStreams.get(task.id);
+      if (!st) { st = { ids:[], latest:{}, unsub:[] }; taskStreams.set(task.id, st); }
+
+      const same = ids.length===st.ids.length && ids.every(x => st.ids.includes(x));
+      if (same) return;
+
+      st.unsub.forEach(u=>{ try{u();}catch{} }); st.unsub=[]; st.ids = ids; st.latest = {};
+
+      if (!ids.length) return;
+      const chunk = 10;
+      for (let i=0; i<ids.length; i+=chunk){
+        const batch = ids.slice(i, i+chunk);
+
+        const handler = (snap)=>{
+          snap.docChanges().forEach(ch=>{
+            const w   = ch.doc.data()||{};
+            const sid = up(w.siteId || ch.doc.id);
+            const t   = (w.completedAt?.toMillis?.() ?? w.timestamp?.toMillis?.() ?? w.createdAt?.toMillis?.() ?? 0);
+            const stt = (w.status||'').toLowerCase();
+            const cur = st.latest[sid];
+            if (!cur || t > cur._t) st.latest[sid] = { status: stt, _t: t };
+          });
+          renderTasks(latestTasks);
+        };
+        const onErr = (e)=> { console.warn('work_logs listener error (dashboard):', e); };
+
+        try{
+          const u = db.collection('work_logs')
+                      .where('operatorUid','==', task.userId)
+                      .where('siteId','in', batch)
+                      .onSnapshot(handler, onErr);
+          st.unsub.push(u);
+        }catch(e){
+          const u = db.collection('work_logs')
+                      .where('siteId','in', batch)
+                      .onSnapshot(handler, onErr);
+          st.unsub.push(u);
+        }
+      }
+    }
+
+    function teardownMissingStreams(currentIds){
+      const keep = new Set(currentIds);
+      for (const [tid, st] of taskStreams.entries()){
+        if (!keep.has(tid)){
+          st.unsub.forEach(u=>{ try{u();}catch{} });
+          taskStreams.delete(tid);
+        }
+      }
+    }
+
+    function isCompletedByOperator(t, id){
+      const sid = up(id);
+      const live = taskStreams.get(t.id)?.latest?.[sid]?.status || '';
+      if (live === 'completed') return true;
+
+      const ps = getPerSiteForId(t.perSite || {}, sid) || {};
+      if ((ps.status||'').toLowerCase() === 'completed') return true;
+
+      const arrays = [t.completedSiteIds, t.completedIds];
+      for (const arr of arrays){
+        const set = new Set(parseIdList(arr));
+        if (set.has(sid)) return true;
+      }
+      return false;
+    }
+
+    function remainingIds(t){
+      const base = baseIdsFromTask(t);
+      return base.filter(id => !isCompletedByOperator(t, id));
+    }
+
+    function renderTasks(items){
+      const el = document.getElementById('tasks-list');
+      if (!el) return;
+
+      const rows = items.map(t => {
+        const remaining = remainingIds(t);
+        return { t, remaining, total: baseIdsFromTask(t).length };
+      }).filter(x => x.total > 0);
+
+      el.innerHTML = '';
+      if (!rows.length){
+        const p = document.createElement('p');
+        p.style.color = '#64748b';
+        p.textContent = 'No tasks assigned yet.';
+        el.appendChild(p);
+        return;
+      }
+
+      rows.forEach(({t, remaining, total})=>{
+        const row = document.createElement('div');
+        row.className = 'task-row';
+
+        const left = document.createElement('div');
+        left.className = 'task-main';
+
+        const title = document.createElement('div');
+        title.className = 'task-title';
+        const dest = remaining.length
+          ? `AssignedParks.html?focus=${encodeURIComponent(remaining.join(','))}&task=${encodeURIComponent(t.id)}&autolock=1`
+          : `AssignedParks.html?task=${encodeURIComponent(t.id)}&autolock=1`;
+
+        const a = document.createElement('a');
+        a.className = 'task-link';
+        a.href = dest;
+        a.title = 'Open remaining sites in the map';
+        a.textContent = zoneTitle(t);
+        a.addEventListener('click', async (ev) => {
+          ev.preventDefault();
+          try { await markTaskStarted(t.id); } catch {}
+          location.href = dest;
+        });
+        title.appendChild(a);
+        left.appendChild(title);
+
+        const meta = document.createElement('div');
+        meta.className = 'task-meta';
+        const dueDate = t.dueDate?.toDate ? t.dueDate.toDate()
+                     : (t.dueDate instanceof Date ? t.dueDate : null);
+        const dueTxt  = dueDate ? ` • Due ${dueDate.toLocaleDateString()}` : '';
+        meta.textContent = `${remaining.length} remaining of ${total}${dueTxt}`;
+        left.appendChild(meta);
+
+        if (remaining.length){
+          const note = document.createElement('div');
+          note.className = 'task-note';
+          note.textContent = remaining.join(', ');
+          left.appendChild(note);
+        }
+
+        const right = document.createElement('div');
+        right.className = 'task-actions';
+
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-slate';
+        const s = (t.status || 'assigned').replace('_',' ');
+        badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        right.appendChild(badge);
+
+        const openBtn = document.createElement('a');
+        openBtn.href = dest;
+        openBtn.className = 'btn btn-dark btn-small';
+        openBtn.textContent = 'Open';
+        openBtn.addEventListener('click', async (ev) => {
+          ev.preventDefault();
+          try { await markTaskStarted(t.id); } catch {}
+          location.href = dest;
+        });
+        right.appendChild(openBtn);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        el.appendChild(row);
+      });
+    }
+
+    window.startTasksListener = function (uid) {
+      return db.collection('assignments')
+        .where('userId', '==', uid)
+        .onSnapshot((snap) => {
+          const items = [];
+          snap.forEach(doc => {
+            const d = doc.data() || {};
+            if ((d.status || 'assigned').toLowerCase() === 'completed') return;
+            const task = { id: doc.id, ...d };
+            items.push(task);
+            ensureTaskStreams(task);
+          });
+
+          teardownMissingStreams(items.map(x => x.id));
+
+          items.sort((a, b) => {
+            const ad = a.dueDate?.toDate ? a.dueDate.toDate() : (a.dueDate instanceof Date ? a.dueDate : null);
+            const bd = b.dueDate?.toDate ? b.dueDate.toDate() : (b.dueDate instanceof Date ? b.dueDate : null);
+            if (ad && bd) return ad - bd;
+            if (ad && !bd) return -1;
+            if (!ad && bd) return 1;
+            const ac = a.createdAt?.toDate ? a.createdAt.toDate() : 0;
+            const bc = b.createdAt?.toDate ? b.createdAt.toDate() : 0;
+            return (bc || 0) - (ac || 0);
+          });
+
+          latestTasks = items;
+          renderTasks(items);
+        }, (err) => {
+          console.warn('tasks listener error:', err);
+          const el = document.getElementById('tasks-list');
+          if (el) el.innerHTML = '<p style="color:#b91c1c">Failed to load tasks.</p>';
+        });
+    };
+
+    firebase.auth().onAuthStateChanged((u) => {
+      if (u) window.startTasksListener(u.uid);
+    });
+  })();
+  </script>
+
+  <!-- Risk Assessment modal logic (AEST + writes createdAt, operatorUid, createdBy, operatorEmail) -->
+  <script>
+  (function(){
+    const db = firebase.firestore();
+    const TZ = 'Australia/Brisbane';
+
+    const backdrop  = document.getElementById('riskBackdrop');
+    const agreeBtn  = document.getElementById('raAgreeBtn');
+    const checks    = Array.from(document.querySelectorAll('.ra-check'));
+    const nameInput = document.getElementById('raName');
+    const statusEl  = document.getElementById('raStatus');
+    const datePill  = document.getElementById('raDatePill');
+
+    function dayKeyAEST(d=new Date()){
+      return new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+    }
+    function fmtDateAEST(d=new Date()){
+      return new Intl.DateTimeFormat('en-AU',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+    }
+    function lsKey(uid){ return `riskAck:${uid}:${dayKeyAEST()}`; }
+
+    function setBlockedUI(on){
+      if (on){ backdrop.classList.add('show'); backdrop.setAttribute('aria-hidden','false'); document.documentElement.style.overflow='hidden'; }
+      else   { backdrop.classList.remove('show'); backdrop.setAttribute('aria-hidden','true'); document.documentElement.style.overflow=''; }
+    }
+    function allChecked(){ return checks.every(c=>c.checked) && nameInput.value.trim().length>1; }
+    function updateState(){
+      agreeBtn.disabled = !allChecked();
+      statusEl.textContent = agreeBtn.disabled
+        ? 'Please tick all boxes and enter your name to continue.'
+        : 'Ready to proceed.';
+    }
+    datePill.textContent = fmtDateAEST();
+    checks.forEach(c=>c.addEventListener('change', updateState));
+    nameInput.addEventListener('input', updateState);
+    updateState();
+
+    async function alreadyAcknowledged(uid){
+      try { if (localStorage.getItem(lsKey(uid))==='1') return true; } catch(_) {}
+      try {
+        const docId = `${uid}_${dayKeyAEST()}`;
+        const snap = await db.collection('risk_assessments').doc(docId).get();
+        return snap.exists;
+      } catch { return false; }
+    }
+
+    async function saveAssessment(){
+      const u = firebase.auth().currentUser;
+      if (!u){ alert('You must be signed in.'); return; }
+
+      let display = u.displayName || (u.email ? u.email.split('@')[0] : u.uid);
+      try{
+        const us = await db.collection('users').doc(u.uid).get();
+        const ud = us.data()||{};
+        display = ud.name || ud.username || display;
+      }catch{}
+
+      const vals = checks.reduce((o,c)=> (o[c.dataset.key]=!!c.checked, o), {});
+      const docId = `${u.uid}_${dayKeyAEST()}`;
+
+      // IMPORTANT: include operatorUid + createdBy + operatorEmail for rules
+      await db.collection('risk_assessments').doc(docId).set({
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        dayKeyAEST: dayKeyAEST(),
+        tz: TZ,
+        operatorUid: u.uid,
+        createdBy: u.uid,
+        operatorEmail: u.email || '',
+        operatorDisplay: display,
+        ppe: !!vals.ppe, equipment: !!vals.equipment, hazards: !!vals.hazards, traffic: !!vals.traffic,
+        weather: !!vals.weather, swms: !!vals.swms, fitness: !!vals.fitness, stopWork: !!vals.stopwork,
+        typedName: nameInput.value.trim(), notes: ''
+      }, { merge:true });
+
+      try { localStorage.setItem(lsKey(u.uid), '1'); } catch(_){}
+    }
+
+    agreeBtn.addEventListener('click', async () => {
+      if (agreeBtn.disabled) return;
+      agreeBtn.disabled = true;
+      statusEl.textContent = 'Saving...';
+      try { await saveAssessment(); }
+      catch(e){ console.warn('risk_assessments write failed:', e); alert('Save failed — please try again.'); agreeBtn.disabled=false; return; }
+      setBlockedUI(false);
+    });
+
+    // keep the modal from closing via backdrop/escape
+    backdrop.addEventListener('click', (e)=> { if (e.target===backdrop) e.preventDefault(); });
+    document.addEventListener('keydown', (e)=> { if (backdrop.classList.contains('show') && e.key==='Escape') e.preventDefault(); });
+
+    firebase.auth().onAuthStateChanged(async (u) => {
+      if (!u) return;
+      const done = await alreadyAcknowledged(u.uid);
+      if (!done) setBlockedUI(true);
+    });
+  })();
+  </script>
+
 </body>
 </html>

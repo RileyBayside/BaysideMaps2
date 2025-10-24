@@ -29,6 +29,90 @@ function getColor(cuts) {
     return 'red';
 }
 
+// ----- make a namespace -----
+window.BaysideMaps = window.BaysideMaps || {};
+
+/**
+ * Initialize the Parks Mowing map in any container.
+ * @param {Object} opts
+ * @param {string} opts.containerId - element id to mount the map into
+ * @param {string} [opts.geojsonUrl='data.geojson'] - path to GeoJSON
+ * @param {(feature, layer, evt) => void} [opts.onFeatureClick] - handler for clicks
+ * @param {boolean} [opts.fitBounds=true] - whether to fit to data bounds
+ */
+BaysideMaps.initParksMowingMap = async function initParksMowingMap(opts = {}) {
+  const {
+    containerId,
+    geojsonUrl = 'data.geojson',
+    onFeatureClick,
+    fitBounds = true
+  } = opts;
+
+  const el = document.getElementById(containerId);
+  if (!el) {
+    console.warn(`[BaysideMaps] container #${containerId} not found`);
+    return;
+  }
+
+  // ====== YOUR EXISTING MAP SETUP STARTS HERE ======
+  // Example: copy the Leaflet map creation from script.js here
+  // (use the same tile layer and styling you use on ParksMowing)
+
+  const map = L.map(containerId, { zoomControl: true, attributionControl: false, preferCanvas: true });
+
+  // same base layer you use in ParksMowing:
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+    .addTo(map);
+
+  // If you already have a style object in script.js, reuse it here:
+  const defaultStyle = {
+    color: '#1d4ed8',
+    weight: 2,
+    opacity: 0.9,
+    fillColor: '#60a5fa',
+    fillOpacity: 0.25
+  };
+
+  // Load the same data you use on ParksMowing:
+  const resp = await fetch(geojsonUrl);
+  const data = await resp.json();
+
+  const layer = L.geoJSON(data, {
+    style: defaultStyle,
+    onEachFeature: (feature, l) => {
+      // Wire click out to delegate if provided
+      l.on('click', (evt) => {
+        if (onFeatureClick) onFeatureClick(feature, l, evt);
+      });
+
+      // Optional: your existing popup/hover logic
+      // const name = feature.properties?.name || feature.properties?.id || 'Site';
+      // l.bindPopup(`<strong>${name}</strong>`);
+    }
+  }).addTo(map);
+
+  if (fitBounds) {
+    const b = layer.getBounds();
+    if (b.isValid()) map.fitBounds(b.pad(0.05));
+    else map.setView([-27.5, 153.2], 11); // fallback center
+  }
+
+  // Return map/layer if a caller wants to do more stuff
+  return { map, layer };
+  // ====== YOUR EXISTING MAP SETUP ENDS HERE ======
+};
+
+// Keep ParksMowing.html behavior unchanged:
+// If that page has <div id="map"> and loads script.js, we can
+// auto-init the map there as before:
+document.addEventListener('DOMContentLoaded', () => {
+  const parksContainer = document.getElementById('map');
+  if (parksContainer) {
+    BaysideMaps.initParksMowingMap({ containerId: 'map' })
+      .catch(err => console.warn('Auto-init parks map failed:', err));
+  }
+});
+
 // Load GeoJSON
 fetch('data.geojson')
   .then(res => res.json())

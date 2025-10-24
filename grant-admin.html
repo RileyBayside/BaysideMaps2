@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grant Admin</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{ --ink:#0f172a; --muted:#e5e7eb; --bg:#f6f7fb; --card:#ffffff; --accent:#0f172a; }
+    *{ box-sizing: border-box }
+    html,body{ height:100% }
+    body{ margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+    .container{ max-width:720px; margin: 24px auto; padding: 0 16px }
+    .card{ background:var(--card); border:1px solid var(--muted); border-radius:16px; box-shadow:0 8px 26px rgba(16,24,40,.08); padding:20px }
+    h1{ margin:0 0 10px; font-size:22px; font-weight:800 }
+    .row{ display:flex; gap:10px; flex-wrap:wrap }
+    label{ display:grid; gap:6px; font-weight:600 }
+    input,button{ padding:10px 12px; border-radius:10px; border:1px solid var(--muted); font-size:1rem }
+    .btn{ border:0; background:var(--accent); color:#fff; font-weight:800; cursor:pointer }
+    .btn.subtle{ background:#111827 }
+    .muted{ color:#475569 }
+    .error{ color:#c62828; margin:8px 0 0 }
+    .success{ color:#2e7d32; margin:8px 0 0 }
+    .divider{ height:1px; background:var(--muted); margin:16px 0 }
+    .hide{ display:none !important }
+  </style>
+</head>
+<body>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
+  
+  <div class="container">
+    <div class="card">
+      <h1>Grant Admin (one-time)</h1>
+      <p class="muted">Use the email configured in <code>seed.admin_email</code>. Sign in below, then click the button.</p>
+
+      <!-- Signed-out view -->
+      <div id="signinSection">
+        <h3 style="margin:10px 0 8px">Sign in</h3>
+        <div class="row" style="gap:12px; align-items:flex-end">
+          <div style="flex:1; min-width:220px">
+            <label>Email
+              <input id="email" type="email" placeholder="you@example.com" autocomplete="username" />
+            </label>
+          </div>
+          <div style="flex:1; min-width:180px">
+            <label>Password
+              <input id="password" type="password" autocomplete="current-password" />
+            </label>
+          </div>
+          <button id="signinBtn" class="btn">Sign in</button>
+        </div>
+        <p id="signinErr" class="error"></p>
+      </div>
+
+      <!-- Signed-in view -->
+      <div id="grantSection" class="hide">
+        <p class="muted">Signed in as <b id="who"></b></p>
+        <div class="row">
+          <button id="grantBtn" class="btn">Grant me admin</button>
+          <button id="signoutBtn" class="btn subtle">Sign out</button>
+          <a href="admin.html"><button class="btn subtle">Go to Admin</button></a>
+        </div>
+        <p id="msg" class="success"></p>
+        <p id="err" class="error"></p>
+      </div>
+
+      <div class="divider"></div>
+      <p class="muted" style="font-size:.9rem">
+        After granting admin, sign out and sign back in once so your ID token refreshes with <code>role: "admin"</code>.
+      </p>
+    </div>
+  </div>
+
+  <!-- Firebase compat (matches the rest of your site) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-functions-compat.js"></script>
+  <script src="firebase-init.js"></script>
+
+  <script>
+    (function(){
+      const auth = firebase.auth();
+      const functions = firebase.app().functions('us-central1');
+      const seedGrantAdmin = functions.httpsCallable('seedGrantAdmin');
+
+      const signinSection = document.getElementById('signinSection');
+      const grantSection  = document.getElementById('grantSection');
+      const who = document.getElementById('who');
+
+      function showSignedOut() {
+        signinSection.classList.remove('hide');
+        grantSection.classList.add('hide');
+      }
+      function showSignedIn(user) {
+        who.textContent = user.email || user.uid;
+        signinSection.classList.add('hide');
+        grantSection.classList.remove('hide');
+      }
+
+      // React to auth state
+      auth.onAuthStateChanged(async (user) => {
+        if (!user) { showSignedOut(); return; }
+        showSignedIn(user);
+      });
+
+      // Sign in
+      document.getElementById('signinBtn').addEventListener('click', async () => {
+        const email = document.getElementById('email').value.trim();
+        const pass  = document.getElementById('password').value;
+        const errEl = document.getElementById('signinErr');
+        errEl.textContent = '';
+        try {
+          await auth.signInWithEmailAndPassword(email, pass);
+        } catch (e) {
+          errEl.textContent = e.message || 'Sign in failed';
+        }
+      });
+
+      // Sign out
+      document.getElementById('signoutBtn').addEventListener('click', async () => {
+        await auth.signOut();
+        showSignedOut();
+      });
+
+      // Grant admin
+      document.getElementById('grantBtn').addEventListener('click', async () => {
+        const msg = document.getElementById('msg');
+        const err = document.getElementById('err');
+        msg.textContent = ''; err.textContent = '';
+        const user = auth.currentUser;
+        if (!user) { err.textContent = 'Please sign in first.'; return; }
+        try {
+          // refresh token so callable gets email in claims
+          await user.getIdToken(true);
+          const res = await seedGrantAdmin({});
+          if (res && res.data && res.data.ok) {
+            msg.textContent = 'Admin granted. Sign out/in once, then open admin.html';
+          } else {
+            err.textContent = 'Could not grant admin.';
+          }
+        } catch (e) {
+          // surface Firebase HttpsError codes like 'permission-denied'
+          err.textContent = (e && (e.message || e.code)) || 'Error granting admin';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

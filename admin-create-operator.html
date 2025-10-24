@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bayside — Create Operator</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --ink:#0f172a; --muted:#e5e7eb; --bg:#f6f7fb; --card:#ffffff;
+      --accent:#0f172a; --danger:#b91c1c; --ok:#065f46;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg); color:var(--ink); padding:24px;
+    }
+    .wrap{ max-width:880px; margin:0 auto; }
+    header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+    .brand{ display:flex; align-items:center; gap:12px; }
+    .brand img{ height:40px; }
+    .title{ font-weight:800; font-size:22px; }
+    a.btn-link{ text-decoration:none; font-weight:700; color:#334155; }
+    .card{
+      background:var(--card); border:1px solid var(--muted); border-radius:16px;
+      padding:18px; box-shadow:0 20px 48px rgba(16,24,40,.10);
+    }
+    .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
+
+    label{ font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px; }
+    input, select{
+      width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--muted);
+      font-size:15px; background:#fff;
+    }
+    input:focus, select:focus{ outline:3px solid #e6f0ff; border-color:#94a3b8 }
+
+    .actions{ display:flex; gap:10px; margin-top:14px; }
+    button{
+      border:0; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer;
+    }
+    .btn-primary{ background:var(--accent); color:#fff; }
+    .btn-ghost{ background:#f1f5f9; color:#0f172a; }
+    .hint{ color:#64748b; font-size:13px; margin-top:8px; }
+    .msg{ margin-top:12px; padding:12px; border-radius:12px; display:none; }
+    .msg.ok{ background:#ecfdf5; color:#065f46; display:block; }
+    .msg.err{ background:#fef2f2; color:#b91c1c; display:block; }
+
+    .guard{ margin:22px 0 0; padding:14px; border-radius:12px; background:#fff7ed; border:1px solid #ffedd5; display:none; }
+    .guard.show{ display:block; }
+  </style>
+</head>
+<body>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
+  
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <img src="logo.png" alt="Bayside" onerror="this.style.display='none'">
+        <div class="title">Create Operator</div>
+      </div>
+      <nav>
+        <a class="btn-link" href="admin.html">← Back to Admin</a>
+      </nav>
+    </header>
+
+    <!-- Admin gate notice -->
+    <div id="gate" class="guard">
+      <b>Admin required.</b> You must be signed in as an admin to access this page.
+      <div style="margin-top:6px">
+        <a class="btn-link" href="login.html">Go to login</a>
+      </div>
+    </div>
+
+    <section class="card" id="formCard" style="display:none">
+      <form id="createForm" autocomplete="off">
+        <div class="grid">
+          <div>
+            <label for="username">Username</label>
+            <input id="username" placeholder="e.g., riley" required>
+            <div class="hint">Email will be created as <b>&lt;username&gt;@bayside.local</b></div>
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" minlength="6" placeholder="Min 6 characters" required>
+          </div>
+          <div>
+            <label for="role">Role</label>
+            <select id="role">
+              <option value="operator">operator</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn-primary">Create operator</button>
+          <button type="button" id="resetBtn" class="btn-ghost">Reset</button>
+        </div>
+
+        <div id="ok"  class="msg ok"></div>
+        <div id="err" class="msg err"></div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-check-compat.js"></script>
+
+  <!-- Project init + App Check -->
+  <script src="firebase-init.js"></script>
+  <script src="appcheck.js"></script>
+
+  <script>
+    // --- Admin Gate: must be signed-in AND have role: 'admin' in /users/{uid} ---
+    const gateEl = document.getElementById('gate');
+    const formCard = document.getElementById('formCard');
+
+    async function assertIsAdmin(user){
+      if(!user) return false;
+      try{
+        const db = firebase.firestore();
+        const doc = await db.collection('users').doc(user.uid).get();
+        const data = doc.exists ? doc.data() : null;
+        return !!data && (data.role === 'admin');
+      }catch(e){
+        console.warn('role check failed', e);
+        return false;
+      }
+    }
+
+    firebase.auth().onAuthStateChanged(async (u)=>{
+      const ok = await assertIsAdmin(u);
+      if(ok){ formCard.style.display = 'block'; gateEl.classList.remove('show'); }
+      else { gateEl.classList.add('show'); formCard.style.display = 'none'; }
+    });
+
+    // --- Form submit -> Cloud Function createOperator ---
+    const form = document.getElementById('createForm');
+    const okBox = document.getElementById('ok');
+    const errBox = document.getElementById('err');
+    const resetBtn = document.getElementById('resetBtn');
+
+    function setMsg(type, text){
+      okBox.style.display = 'none';
+      errBox.style.display = 'none';
+      if(type === 'ok'){ okBox.textContent = text; okBox.style.display = 'block'; }
+      if(type === 'err'){ errBox.textContent = text; errBox.style.display = 'block'; }
+    }
+
+    resetBtn.addEventListener('click', ()=>{
+      form.reset();
+      setMsg('', '');
+    });
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      setMsg('', '');
+
+      const username = String(document.getElementById('username').value || '').trim().toLowerCase();
+      const password = String(document.getElementById('password').value || '').trim();
+      const role = String(document.getElementById('role').value || 'operator').trim().toLowerCase();
+
+      if(!username || !password){ setMsg('err','Please enter a username and password.'); return; }
+      if(!/^[a-z0-9._-]+$/.test(username)){ setMsg('err','Username can contain letters, numbers, dot, underscore or hyphen only.'); return; }
+      if(!(role === 'operator' || role === 'admin')){ setMsg('err','Role must be operator or admin.'); return; }
+
+      try{
+        // region is optional; set if your functions are deployed outside default
+        const functions = firebase.app().functions(/* region */);
+        const createOp = functions.httpsCallable('createOperator');
+        const res = await createOp({ username, password, role });
+
+        const email = `${username}@bayside.local`;
+        setMsg('ok', `Created user ${email} with role "${role}".`);
+        form.reset();
+      }catch(err){
+        console.error(err);
+        const msg = (err && err.message) ? err.message : 'Failed to create operator.';
+        setMsg('err', msg);
+      }
+    });
+  </script>
+</body>
+</html>

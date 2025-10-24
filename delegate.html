@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bayside — Delegate tasks</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --ink:#0f172a; --ink-2:#111827; --muted:#e5e7eb; --bg:#f6f7fb; --card:#ffffff;
+      --accent:#d11e2b; --accent-600:#b71a24; --focus:#e6f0ff;
+    }
+    *{box-sizing:border-box}
+
+    /* Fill the viewport and prevent page scroll */
+    html, body { height:100%; }
+    body{
+      margin:0;
+      font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg); color:var(--ink);
+      display:flex; flex-direction:column; min-height:100vh; overflow:hidden;
+    }
+
+    /* Header */
+    .header{
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:16px 22px; background:#fff; border-bottom:1px solid var(--muted);
+      flex:0 0 auto;
+    }
+    .brand{ display:flex; align-items:center; gap:14px }
+    .brand img{ height:56px; display:block }
+    .title{ font-size:22px; font-weight:800; color:var(--ink-2) }
+    .userbox{ display:flex; align-items:center; gap:12px; flex-wrap:wrap }
+    .email{ font-weight:600; color:#334155; background:#f1f5f9; border:1px solid #e2e8f0; padding:8px 10px; border-radius:10px; }
+    .btn{ border:0; border-radius:10px; padding:10px 14px; font-weight:800; cursor:pointer; color:#fff; background:var(--ink); }
+    .btn:hover{ background:#1f2937 }
+
+    /* Layout */
+    .container{
+      max-width:1200px; margin: 12px auto; padding: 0 16px;
+      flex:1 1 auto; width:100%; overflow:hidden; /* no page scroll */
+    }
+    .grid{
+      height:100%;
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:16px;
+      min-height:0; /* allow inner scroll */
+    }
+    @media (max-width:1100px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    /* Cards fill their grid cell and scroll inside when needed */
+    .card{
+      background:var(--card); border:1px solid var(--muted); border-radius:16px;
+      box-shadow:0 8px 26px rgba(16,24,40,.08);
+      display:flex; flex-direction:column; min-height:0;
+    }
+    .card h3{ margin:14px 16px 10px; font-size:16px; font-weight:800; color:var(--ink-2) }
+    .card .body{ padding: 0 16px 16px; display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+
+    .row{ display:flex; gap:8px }
+    .row > *{ flex:1 }
+
+    .strong{ font-weight:800 }
+    .btn-accent{ background:var(--accent) }
+    .btn-accent:hover{ background:var(--accent-600) }
+
+    /* Assign Parks (left) */
+    .inputish{
+      flex: 1; padding: 10px 12px; border: 1px solid var(--muted);
+      border-radius: 10px; font-size: 14px;
+    }
+    .muted-note{ color:#64748b; display:block; margin-top:10px }
+
+    .suburb-list{
+      list-style:none; padding:0; margin:0;
+      display:block;
+      flex:1 1 auto; min-height:0; overflow:auto; padding-right:6px;
+    }
+    .suburb-row{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 12px; border:1px solid var(--muted); border-radius:10px; background:#fff;
+      margin-bottom:8px;
+    }
+    .suburb-row-left{ display:flex; align-items:center; gap:10px }
+    .suburb-row label{ font-weight:700; color:var(--ink-2); cursor:pointer }
+
+    .suburb-details{ border:1px solid var(--muted); border-radius:10px; background:#fff; margin-bottom:8px; }
+    .suburb-details summary{
+      list-style:none; cursor:pointer; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+      font-weight:700; color:var(--ink-2);
+    }
+    .suburb-details[open] summary{ border-bottom:1px solid var(--muted) }
+    .summary-left{ display:flex; align-items:center; gap:10px }
+    .summary-right{ display:flex; align-items:center; gap:8px; color:#334155; font-weight:700 }
+    .summary-right label{ cursor:pointer }
+
+    .suburb-sites{ margin:0; padding:10px 14px 12px 14px }
+    .suburb-sites li{
+      display:flex; align-items:center; gap:10px; margin:4px 0;
+      color:#111827; font-weight:400;
+    }
+    .site-label{ flex:1 }
+    .note-btn{
+      border:1px solid #cbd5e1; background:#fff; color:#111827; border-radius:8px; padding:4px 8px; font-weight:700; cursor:pointer;
+    }
+    .note-btn.has-note{ border-color:#b91c1c; color:#b91c1c }
+    .note-btn:hover{ background:#f8fafc }
+
+    /* Assignment (right) – spaced and fills column; internal scroll for tasks */
+    aside.card .body{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; }
+    .assign-stack{ max-width:360px; margin:0 auto; width:100%; display:flex; flex-direction:column; gap:12px; flex:1 1 auto; min-height:0; }
+    .assign-stack input, .assign-stack select, .assign-stack button{ width:100% }
+    .half{ display:grid; gap:10px; min-height:0; }
+
+    .basket{
+      display:grid; gap:8px; flex:1 1 auto; min-height:0;
+      overflow:auto; padding-right:6px; margin-top:6px;
+    }
+    .item{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+      font-weight:700;
+    }
+    .item small{ font-weight:600; color:#64748b }
+    .item .del{ border:0; border-radius:8px; padding:6px 8px; font-weight:800; background:#f43f5e; color:#fff; cursor:pointer }
+    .item .del:hover{ background:#be123c }
+    .pill{
+      display:inline-block; padding:4px 8px; border-radius:999px; font-size:12px; font-weight:800;
+      background:#fee2e2; color:#7f1d1d; border:1px solid #fecaca;
+    }
+
+    .foot{ display:flex; gap:10px; margin-top:auto; flex-wrap:wrap }
+    .btn-outline{ background:#fff; color:#111827; border:1px solid #cbd5e1 }
+    .grow{ flex:1 }
+
+    /* Toast */
+    .toast{
+      position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#111827; color:#fff;
+      padding:12px 14px; border-radius:10px; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,.25); display:none; z-index:50;
+    }
+    .toast.show{ display:block }
+
+    /* Notes modal */
+    .modal{ position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:center; justify-content:center; z-index:60 }
+    .modal.open{ display:flex }
+    .modal-card{ width:min(640px, 92vw); background:#fff; border-radius:14px; border:1px solid var(--muted); box-shadow:0 10px 30px rgba(0,0,0,.25) }
+    .modal-card header{ padding:14px 16px; border-bottom:1px solid var(--muted); font-weight:800; display:flex; justify-content:space-between; align-items:center }
+    .modal-card .m-body{ padding:14px 16px }
+    .modal-card footer{ padding:12px 16px; border-top:1px solid var(--muted); display:flex; gap:10px; justify-content:flex-end }
+    .modal-card textarea{ width:100%; min-height:160px; resize:vertical; padding:10px 12px; border:1px solid var(--muted); border-radius:10px; font:14px/1.4 Inter,system-ui,sans-serif }
+  </style>
+</head>
+<body>
+
+  <!-- Firebase + guard -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="brand">
+      <img src="logo.png" alt="Bayside logo" onerror="this.style.display='none'">
+      <div class="title">Delegate tasks</div>
+    </div>
+    <div class="userbox">
+      <div id="userEmail" class="email">—</div>
+      <button id="logoutBtn" class="btn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <!-- Left: Assign Parks -->
+      <section class="card">
+        <h3>Assign Parks</h3>
+        <div class="body">
+          <div class="row" style="margin-bottom:10px">
+            <input id="suburbSearch" placeholder="Search suburbs…" class="inputish">
+            <button id="addSelectedSuburbs" class="btn btn-accent" type="button">Add selected</button>
+          </div>
+
+          <ul id="assignParksList" class="suburb-list"></ul>
+
+          <small class="muted-note">
+            Ticking items on the left will appear as <b>Tasks</b> on the right. “Add selected” also pushes your current ticks.
+          </small>
+        </div>
+      </section>
+
+      <!-- Right: Assignment -->
+      <aside class="card">
+        <h3>Assignment</h3>
+        <div class="body">
+          <div class="assign-stack">
+            <div class="half">
+              <label class="strong" for="operatorSel">Operator</label>
+              <select id="operatorSel" required>
+                <option disabled selected>Loading operators…</option>
+              </select>
+              <small style="color:#64748b">Pulls from <b>users</b> where <code>role == "operator"</code>.</small>
+            </div>
+
+            <div class="half">
+              <label class="strong">Assign by site IDs</label>
+              <input id="ids_input" placeholder="e.g. M0123, M0361" />
+              <button class="btn btn-accent" id="ids_add" type="button">Assign</button>
+            </div>
+
+            <div class="half">
+              <label>Notes (optional)</label>
+              <input id="note_input" placeholder="e.g., High priority, access after 10am" />
+            </div>
+
+            <div class="half">
+              <label>Due date (optional)</label>
+              <input id="due_input" type="date" />
+            </div>
+
+            <div class="half" style="min-height:0">
+              <label class="strong">Tasks</label>
+              <div id="basket" class="basket"></div>
+            </div>
+
+            <div class="foot">
+              <button class="btn grow" id="assignBtn" type="button">Assign tasks</button>
+              <button class="btn" id="clearBtn" type="button" style="background:#64748b">Clear</button>
+
+              <div class="half" style="margin-top:6px; width:100%">
+                <a class="btn btn-outline" href="assignments.html" style="text-align:center; display:block">View current assignments</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <!-- Notes Modal -->
+  <div id="noteModal" class="modal" aria-hidden="true">
+    <div class="modal-card">
+      <header>
+        <span id="noteModalTitle">Note</span>
+        <button class="btn btn-outline" id="noteCloseBtn" type="button">Close</button>
+      </header>
+      <div class="m-body">
+        <textarea id="noteTextarea" placeholder="Add a note for this park…"></textarea>
+        <small id="noteHint" class="muted-note"></small>
+      </div>
+      <footer>
+        <button class="btn btn-accent" id="noteSaveBtn" type="button">Save note</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ---------- Tiny toast ----------
+    function toast(msg, ms=2000){
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(()=>t.classList.remove('show'), ms);
+    }
+
+    // ---------- Firebase handles ----------
+    const db = firebase.firestore();
+    let currentUser = null;
+    let _operators = [];
+    let _basket = [];                 // [{ zone, siteIds:[] }]
+    let _isAdmin = false;
+
+    const emailEl   = document.getElementById('userEmail');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    const operatorSel = document.getElementById('operatorSel');
+    const idsInput = document.getElementById('ids_input');
+    const idsAdd   = document.getElementById('ids_add');
+    const noteInput = document.getElementById('note_input');
+    const dueInput  = document.getElementById('due_input');
+    const basketEl  = document.getElementById('basket');
+    const assignBtn = document.getElementById('assignBtn');
+    const clearBtn  = document.getElementById('clearBtn');
+
+    firebase.auth().onAuthStateChanged(async (u)=>{
+      if(!u){ location.href = 'login.html'; return; }
+      currentUser = u;
+      emailEl.textContent = u.email || 'Signed in';
+
+      // fetch role for admin gating
+      try{
+        const doc = await db.collection('users').doc(u.uid).get();
+        _isAdmin = !!doc.exists && (doc.data().role === 'admin');
+      }catch(_){ _isAdmin = false; }
+
+      loadOperators();
+    });
+
+    logoutBtn.addEventListener('click', async ()=>{
+      try{ await firebase.auth().signOut(); location.href = 'login.html'; }
+      catch(e){ console.warn(e); toast('Logout failed'); }
+    });
+
+    function loadOperators(){
+      const OP_DOMAIN = 'operators.bayside-maps.local';
+      const labelFor = (u)=> u.username ? u.username :
+        (u.email && u.email.endsWith('@'+OP_DOMAIN) ? u.email.replace('@'+OP_DOMAIN,'') : (u.email || 'unknown'));
+
+      db.collection('users').where('role','==','operator').onSnapshot(
+        (snap)=>{
+          const ops=[]; snap.forEach(d=>ops.push({ uid:d.id, ...d.data() }));
+          _operators = ops.slice();
+          ops.sort((a,b)=> labelFor(a).localeCompare(labelFor(b)));
+          operatorSel.innerHTML = '';
+          if(!ops.length){ operatorSel.innerHTML = '<option disabled selected>No operators found</option>'; return; }
+          const ph = document.createElement('option');
+          ph.disabled = true; ph.selected = true; ph.textContent = 'Select operator…';
+          operatorSel.appendChild(ph);
+          for(const o of ops){
+            const opt = document.createElement('option');
+            opt.value = o.uid; opt.textContent = labelFor(o);
+            operatorSel.appendChild(opt);
+          }
+        },
+        (err)=>{ console.error(err); operatorSel.innerHTML = '<option disabled selected>Error loading operators</option>'; }
+      );
+    }
+
+    // ---------- Tasks (basket) render ----------
+    function renderBasket(){
+      basketEl.innerHTML = '';
+      if(_basket.length === 0){
+        const p = document.createElement('p');
+        p.style.color = '#64748b';
+        p.textContent = 'No tasks yet. Tick parks on the left or paste site IDs.';
+        basketEl.appendChild(p);
+        return;
+      }
+      _basket.forEach((it, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'item';
+        const left = document.createElement('div');
+        left.innerHTML = `<span class="pill">${it.zone}</span> <small>— ${it.siteIds.join(', ')}</small>`;
+        const del = document.createElement('button');
+        del.className = 'del'; del.textContent = 'Remove';
+        del.onclick = ()=>{ _basket.splice(idx,1); renderBasket(); };
+        row.appendChild(left); row.appendChild(del);
+        basketEl.appendChild(row);
+      });
+    }
+
+    // “Assign by site IDs”
+    idsAdd.addEventListener('click', ()=>{
+      const raw = (idsInput.value||'').trim();
+      if(!raw){ toast('Enter at least one site ID'); return; }
+      const ids = raw.split(',').map(s=>s.trim()).filter(Boolean);
+      _basket.push({ zone:'', siteIds: ids });
+      renderBasket();
+      idsInput.value='';
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      _basket.length = 0;
+      document.querySelectorAll('#assignParksList input[type="checkbox"]').forEach(cb=>cb.checked=false);
+      renderBasket();
+    });
+
+    assignBtn.addEventListener('click', async ()=>{
+      const uid = operatorSel.value;
+      if(!uid){ toast('Choose an operator'); return; }
+      if(_basket.length === 0){ toast('No tasks selected'); return; }
+
+      try{
+        const op = _operators.find(o=>o.uid===uid) || {};
+        const batch = db.batch();
+        const now = firebase.firestore.FieldValue.serverTimestamp();
+        _basket.forEach(it=>{
+          const ref = db.collection('assignments').doc();
+          batch.set(ref, {
+            userId: uid,
+            userName: op.name || op.username || '',
+            zone: it.zone || '',
+            parksRange: '',
+            siteIds: it.siteIds || [],
+            notes: (noteInput.value||''),
+            dueDate: dueInput.value ? new Date(dueInput.value) : null,
+            status: 'assigned',
+            createdAt: now,
+            createdBy: currentUser.uid
+          });
+        });
+        await batch.commit();
+        toast('Tasks assigned');
+        _basket.length = 0; renderBasket();
+        noteInput.value=''; dueInput.value='';
+      }catch(err){
+        console.warn(err);
+        toast('Assign failed: ' + (err.message || err.code || 'error'));
+      }
+    });
+
+    // ---------- Suburbs + Parks ----------
+    const SUBURBS = [
+      'Thorneside','Birkdale','Wellington Point','Alexandra Hills','Capalaba',
+      'Ormiston','Cleveland','Thornlands','Victoria Point','Redland Bay','Mt Cotton'
+    ];
+
+    const SUBURB_ITEMS = {
+      'Thorneside': [
+        '1. M0123 - Helens Street','2. M0427 - Thorneside Road Foreshore Area',
+        '3. M0402 - Queens Esplanade vacant block near No.48','4. M0136 - Leon St and Fisher Rd',
+        '5. M0364 - Fisher Road to Mooroondu sportsfields','6. M0408 - Saul Street',
+        '7. M0819 - Alma Street','8. M0105 - Alma Street','9. M0359 - Eva Street Pumphouse',
+        '10. M0361 - Ferry Road','11. M0362 - Ferry Road - frontages to drainage areas',
+        '12. M0363 - Ferry Road Council block near No. 86','13. M1677 - Ferry Road',
+        '14. M0392 - Mond Street','15. M0436 - Wunulla Street','16. M0110 - Boorana Street',
+        '17. M0147 - Railway Parade','18. M0367 - Frank and Beatty Streets','19. M0374 - Henry Street'
+      ],
+      'Birkdale': [
+        '20. M0163 - Victor Street','21. M0140 - Mary Street','22. M1361 - Mary Street Scout Hall',
+        '23. M0390 - Mary Street to Agnes Street','24. M0389 - Mary Pleasant Drive 1',
+        '25. M0130 - John Goleby Canal','26. M0103 - Agnes Street','27. M0350 - Chart Street',
+        '28. M0120 - Genrich Canal','29. M0114 - Clauson Canal Park','30. M0104 - Alan Woodgate Canal Park',
+        '31. M0131 - Keel Street','32. M0388 - Mary Pleasant Drive','33. M0394 - Myra Street to Napier Street',
+        '34. M0356 - Dorsal Drive - Wood Canal','35. M01360','36. M0358 - Estelle Street',
+        '37. M0369 - Galley Way 2','38. M0133 - Laidlaw Canal Park','39. M0385 - Mako Avenue Grassed median strips',
+        '40. M0370 - Galley Way Walkway','41. M0368 - Galley Way 1','42. M0432 - Wahoo Court inc median strip',
+        '43. M0355 - Dorsal Drive','44. M0139 - MacGregor Drive','45. M0122 - Hardy, Badgen and Paul Street',
+        '46. M0143 - Pandanus Street','47. M0111 - Bryce Place','48. M0157 - Sunnybay Drive',
+        '49. M0424 - Sunnybay Drive to Spoonbill Street','50. M0165 - Wren Court Park',
+        '51. M0815 - Wren Court to Parakeet Street','52. M0354 - Currawong Drive to Burbank Road/Parakeet Street',
+        '53. M0875 - Patersonia Place','54. M0375 - Heston / Creswick Place','55. M0338 - Barron Road',
+        '56. M0137 - Little Hyde Park','57. M0149 - Robinson Park','58. M0366 - Francene Place',
+        '59. M0794 - Vedson Street Drainage reserve','60. M0113 - Carinyan Drive','61. M0118 - Fuchsia Close',
+        '62. M0138 - Lobelia Street','63. M0380 - Leilani Drive - frontage to conservation area','64. M0398 - Palgold Court',
+        '65. M0132 - Kensington Place','66. M0342 - Birkdale Fodder Forest','67. M0116 - Creek Road',
+        '68. M0135 - Leicester Street','69. M0774 - Harrogate Easement','70. M0134 - Lanaglen Drive',
+        '71. M0391 - Mecoli Court','72. M0405 - Remo Place','73. M0145 - Pedwell Place','74. M0112 - Byng Road Park',
+        '75. M0146 - Pistachio Court Park','76. M1680 - 1-7 Quarry Road','77. M0337 - Ashwood Circuit to Quarry Road',
+        '78. M0160 - Tulipwood Drive','79. M0334 - Amalia Street','80. M0352 - Clive Road to Whitehall Avenue',
+        '81. M0154 - St James Park'
+      ],
+      'Wellington Point': [
+        '82. M0412 - Sovereign Waters Estate','83. M0333 - Allan Day Drive (House 39)','84. M0809 - Helena Street Park',
+        '85. M0386 - Marcel Place to Beachcrest Road','86. M0162 - Vantage Crescent',
+        '87. M0343 - Birkdale Rd footpath - in front of unit complex','88. M0407 - Rye Street to Roberts Street',
+        '89. M0127 - Jacob Street','90. M0119 - Galena Street','91. M0428 - Valley Road',
+        '92. M0430 - Valley Road walkway extending into bushland','93. M0429 - Valley Road closed off area',
+        '94. M1698 - Arbor Terrace, Wellington Point','95. M1507 - Station Street','96. M0109 - Bibury and Sawmill Street',
+        '97. M0141 - Mindarie Crescent','98. M0820 - Mindarie Street','99. M0117 - Crossley Drive',
+        '100. M0159 - Trafalgarvale Avenue','101. M0346 - Celsa Street','102. M0144 - Paulina Street',
+        '103. M0121 - Goodall Street','104. M0372 - Goodall Street - Janelle Court Park','105. M0128 - Janelle Court Park',
+        '106. M0376 - Janelle Court','107. M0377 - Janelle Court - Main Road','108. M0340 - Belford Drive - Main Road (inc to 599)',
+        '109. M0032 - Duncan Street','110. M0434 - Warlow Close','111. M0360 - Farnham Street','112. M0108 - Belford Drive',
+        '113. M0379 - Laurance Court','114. M1544 - Starkey Street','115. M0152 - Schonrock Street 2',
+        '116. M0151 - Schonrock Street 1','117. M0397 - North Haven Place','118. M0126 - Hoskins Parks Drive',
+        '119. M0808 - Cashmere Court','120. M0371 - Gilchrist Street Pathway','121. M0156 - Starkey Street',
+        '122. M0335 - Anhs Place','123. M0400 - Poloni Place','124. M0423 - Starkey Street',
+        '125. M0155 - Starkey and Hertiage Drive','126. M0124 - Heritage Drive','127. M0125 - Hilliards Park Drive',
+        '128. M0038 - Sturgeon Street','129. M0349 - Charles Canty Drive','130. M0373 - Grosvenor Court',
+        '131. M0365 - Forsyth Place - Leonard Street','132. M0142 - Montgomery Drive',
+        '133. M0403 - Queensbury Court - Allenby Road','134. M0158 - Sylvania Street',
+        '135. M0129 - Jasper Street','136. M0351 - Cherry and Jasper Street','137. M0150 - Rosella Street Park',
+        '138. M0153 - Spurs Drive','139. M0148 - Riverton Drive','140. M0161 - Tulloch Drive','141. M0401 - Prunda Circuit'
+      ],
+      'Alexandra Hills': [
+        '1. M0504 - Pathway from Crotona Rd extending to Dan St','2. M0442 - Brewer Street','3. M0170 - Bowen Street',
+        '4. M0480 - Keith Street','5. M0167 - Babiana Street','6. M0513 - Princeton Street',
+        '7. M0439 - Babiana School Frontage','8. M0440 - Babiana Street Walkway',
+        '9. M0514 - Queenscourt Road to St Anthony Drive','10. M0180 - George Street Park',
+        '11. M0200 - Snowdon Street Park','12. M0447 - Charter Street to Constitiution Crescent',
+        '13. M0202 - Sylvania Street Park','14. M0493 - Montgomery Drive','15. M0526 - Squirrel Glider Conservation Area',
+        '16. M0183 - Heffernan Road Park','17. M0201 - Sussex Street Park','18. M0166 - Ackworth Place Park',
+        '19. M0184 - Hyde Court Park','20. M0206 - Workington Street','21. M0187 - Keynsham Street',
+        '22. M0812 - Keynsham Street 2','23. M0043 - Hanover Drive Park','24. M0470 - Hanover Drive between No 72 and 74',
+        '25. M0172 - Burwood Road 2','26. M0171 - Burwood Road 1','27. M0199 - Sevenoaks Park',
+        '28. M0179 - Frampton Street Park','29. M0196 - Redland Bay Road','30. M0463 - Frampton Street to Redland Bay Road',
+        '31. M0538 - Weymouth Street to reserve','32. M0054 - Wimborne Road Park','33. M0175 - Chipping Drive Park',
+        '34. M0197 - Redruth Road','35. M0518 - Redruth walkway between 36 and 38','36. M0516 - Redruth Road',
+        '37. M0168 - Bellini Court','38. M0534 - Vienna Road corridor - 2m strip + frontages',
+        '39. M0438 - Allendale Place to Reserve','40. M0173 - Chantelle Court','41. M0178 - Crotona Road',
+        '42. M0204 - Windemere Road','43. M0181 - Glover Drive'
+      ],
+      'Capalaba': [
+        '44. M0203 - Tauris Road Drain','45. M0792 - Capalaba Gateway Park','46. M0186 - Jupiter Street',
+        '47. M0814 - Jupiter Street to Redland Bay Road','48. M0521 - Scorpio Street to Redland Bay Road',
+        '49. M0498 - Neller Street','50. M0198 - Sarah Court','51. M0205 - Winter Memorial Park',
+        '52. M0797 - Pittwin Road South Park','53. M0515 - Quentin Street','54. M0188 - Killarney Crescent 1',
+        '55. M0169 - Blarney Road Park','56. M0189 - Killarney Crescent 2','57. M0483 - Larbonya and Kingfisher',
+        '58. M0484 - Larbonya Crescent to Camden Court','59. M0174 - Chatsworth Circuit 1',
+        '60. M0448 - Chatsworth Circuit 2','61. M0185 - Jacaranda Road','62. M0490 - Macquarie Street to St Lukes Court',
+        '63. M0193 - Macquarie Street','64. M0527 - St Peters Court between No. 7 and 8','65. M0485 - Lawlor Reserve',
+        '66. M0524 - Silvara Circuit','67. M0190 - Krimmer Place Park','68. M0194 - McTaggart Street Park',
+        '69. M0177 - Crighton Court','70. M0182 - Gundagai Drive Park','71. M0195 - Nova Court',
+        '72. M0492 - Montana Drive to reserve','73. M0530 - Tipuana Drive','74. M0326 - Mount Cotton Park',
+        '75. M0191 - Lyndon and Mahogany Street','76. M0488 - Lyndon Rd Firtree St',
+        '77. M0476 - Ironbark Street to Lyndon Road','78. M1543 - Duncan Road Baseball',
+        '79. M0452 - Cottonwood Court','80. M0192 - Lyndon Road','81. M0044 - Indigiscapes & Lyndon Road',
+        '82. M0176 - Chook Sheds'
+      ],
+      'Ormiston': [
+        '1. M0221 - Hilliard Street','2. M0250 - Tolson Terrace','3. M0559 - Court Street',
+        '4. M0606 - Yorston Place Walkway - Ivory Lane (Next to 27)','5. M0218 - Eckersly and Empire Vista Street',
+        '6. M0219 - Empire Vista','7. M0067 - Outlook Parade','8. M0552 - Beckwith Street 1',
+        '9. M0553 - Beckwith Street 2','10. M0603 - Wellington Street Footpath (Nr Fig Tree Place)',
+        '11. M0217 - Counihan Street','12. M0784 - Como to Counihan Street','13. M0593 - Sturgeon Street',
+        '14. M0246 - Susannah Place','15. M0563 - Dundas Street West and Casey',
+        '16. M0562 - Delancey St - various grassed areas inc frontage','17. M0605 - Wisteria Street',
+        '18. M0567 - Francis Street','19. M0251 - Troy Street 1','20. M0598 - Troy Street 2',
+        '21. M0225 - Lucy Court','22. M0579 - Obrien Street to Tascon Street','23. M0543 - 13 Parnell',
+        '24. M0232 - Parnell Street','25. M0207 - Bainbridge Street','26. M0208 - Bainbridge Street',
+        '27. M0568 - Freeth Street West','28. M0570 - Gordon Street to Bainbridge Street East',
+        '29. M0602 - Wellington Street Drain','30. M0588 - Sand Street','31. M0549 - Bainbridge St, Ormiston',
+        '32. M0230 - Nautilus Drive','33. M0578 - Nautilus Drive 2','34. M0231 - Nautilus Drive 1',
+        '35. M0214 - Cayman Crescent','36. M0600 - Walkway at end of Nautilus Drive'
+      ],
+      'Cleveland': [
+        '37. M0237 - Sentinel Court 1','38. M0238 - Sentinel Court 2','39. M0235 - Seacrest Court',
+        '40. M0229 - Masthead Drive','41. M0236 - Seahaven Court Park','42. M0248 - Tasman Canal Park',
+        '43. M0212 - Bligh Canal Park','44. M0226 - Magellan Canal Park','45. M0209 - Bass Canal Park',
+        '46. M0222 - Kinsail Court','47. M0227 - Mainroyal Court','48. M0241 - Sommersea Drive 1',
+        '49. M0213 - Bonaventure Court','50. M0242 - Sommersea Drive 2','51. M0243 - Sommersea Drive 3',
+        '52. M0211 - Beaufort Court','53. M0224 - Little Shore Street',
+        '54. M0575 - Little Shore Street walkway next to No. 20','55. M0584 - Paxton Street to Little Shore Street',
+        '56. M0234 - Raby Bay Boulevard','57. M0233 - Permont Place','58. M0216 - Channel Street 2',
+        '59. M0569 - Gated foreshore area Queen to Island Street','60. M0215 - Channel Street 1',
+        '61. M0065 - Nandeebie Park','62. M0583 - Passage and Long Street',
+        '63. M0557 - Coburg Street East to Wynyard Street','64. M0545 - Amanda Street to Conservation Area',
+        '65. M1515 - Woodrow Place','66. M0210 - Bay and Phillip Street','67. M0604 - Windsong Circuit',
+        '68. M0565 - Fitzroy Street blocked off area','69. M0554 - Bushland frontage - Kooringa and Pleasant',
+        '70. M1687 - Paranka Drive North','71. M0574 - Langdon Street','72. M0550 - Bayshore Place',
+        '73. M0247 - Tarina Street','74. M0779 - Riley Peter Place Park','75. M0239 - Shelduck Street',
+        '76. M0564 - Dunwich Street','77. M0587 - Riseborough Terrace','78. M0777 - Ronnie Street',
+        '79. M0228 - Marc Place','80. M0830 - Mergowie Drive/Lowanna Tce','81. M0682 - Mergowie Drive Laneway',
+        '82. M0555 - Carinya Street','83. M0240 - Smith Street Park','84. M0544 - Adam Street',
+        '85. M0585 - Princess Street footpath area','86. M0572 - Gregory Court to Wellington Street',
+        '87. M0245 - Sunshine Drive','88. M0591 - Skate Ramp Park CL','89. M0590 - Shore Street West',
+        '90. M0223 - Lisa Street','91. M0780 - Haggup Street - Behind Courthouse','92. M0220 - Haggup Street',
+        '93. M0858 - John Street Old Daycare','94. M0252 - Waterloo Street Drain','95. M0796 - Arlington Street Park'
+      ],
+      'Thornlands': [
+        '1. M0710 - path opp Barramul Plce to end of Santaguiliana','2. M0700 - Morris Circuit',
+        '3. M0677 - Judance Court to Gaylen Street','4. M0297 - Portias Place','5. M0301 - Ribbonwood street',
+        '6. M0702 - Morris Circuit walkway','7. M0647 - Dasen Street','8. M0723 - Ribbonwood Street grass verge',
+        '9. M0626 - Bush Cherry Place','10. M0739 - Tudor Place to Clifford Perske Drive','11. M1358 - Island Oulook Avenue',
+        '12. M0740 - Vega Court to fence','13. M0741 - Verdelho Street to Island Outlook Avenue',
+        '14. M0674 - Island Outlook Avenue to Monterey Avenue','15. M0610 - Archernar Court To Eridani Crt & Valda St',
+        '16. M0733 - Sylvie Street','17. M0722 - Ransom Court to reserve area','18. M0621 - Blue Water Avenue',
+        '19. M0253 - Abbotsleigh Street Park','20. M0616 - Bay Breeze Avenue to Reserve area',
+        '21. M0270 - Glenys Street','22. M0086 - Panorama Drive',
+        '23. M0709 - Path adjoining Special School to Panorama Drive','24. M0746 - Wellington Street to Panorama Drive',
+        '25. M0660 - Falcon Avenue walkway','26. M0716 - Plover Drive to Wellington Street',
+        '27. M0315 - Tokay Court','28. M0283 - Lorikeet Drive 2','29. M0282 - Lorikeet Drive 1',
+        '30. M0689 - Lorikeet Drive Drain','31. M0666 - Goddard Road to Panorama Drive',
+        '32. M0638 - Cockatiel Court to South Street','33. M1679 - ???','34. M0261 - Brindabella Circuit',
+        '35. M0823 - Kidman Circuit/ Rowe Crescent','36. M2021 - Kingsdale Ave','37. M0699 - Milner Place',
+        '38. M0302 - Rushwood Estate','39. M0634 - Chardonnay Court to Moselle Drive',
+        '40. M0734 - Tahoe Court','41. M0274 - Grosvenor Park Estate','42. M0316 - Tuna Court',
+        '43. M0259 - Baythorn Drive','44. M0627 - Butternut Circuit','45. M0299 - Primrose Drive',
+        '46. M0269 - George Thorn Drive and Jerrys Place','47. M0665 - George Thorn drive',
+        '48. M0305 - Sequoia Street','49. M0742 - Walkway between end Karragarra Plce & Maged Plce',
+        '50. M0313 - Tindappah Drive North','51. M0314 - Tindappah Drive South','52. M0087 - Pinklands',
+        '53. M1668 - Waterline Boulevard','54. M0825 - Arctic Street','55. M1684 - Connie Way',
+        '56. M0869 - Harrington Boulevard','57. M0284 - Luke Street','58. M1682 - Marcoola Street'
+      ],
+      'Victoria Point': [
+        '59. M0300 - Regency Street','60. M0276 - Illidge',
+        '61. M0684 - Lakefield Drv (opp No.17) along Pt O\'Halloran','62. M0728 - Seaholly Cr to Pt Ohalloran',
+        '63. M0306 - Stacey Court','64. M0727 - Seagull Street to School Road','65. M0641 - Colburn Avenue',
+        '66. M0717 - Point O\'Halloran Road','67. M0265 - Egret Drive 2','68. M0266 - Egret Drive 3',
+        '69. M0078 - Egret Drive 1','70. M0748 - Wilmot Street','71. M0697 - Marianne Street',
+        '72. M0257 - Bassil Avenue','73. M0413 - Alarna Street','74. M0320 - Wilson Street','75. M0636 - Church Street',
+        '76. M0653 - Edinburgh Street','77. M0622 - Boat Street to Thompson Street','78. M0264 - Daysland Street',
+        '79. M0640 - Colburn Ave to Applecross Close','80. M0608 - Anthony Street to Applecross Street',
+        '81. M0612 - At end of Manuela Street','82. M0688 - Link Road to Cam Court','83. M0752 - Yeo Street to Beach Court',
+        '84. M0680 - Kate Street pathway','85. M0288 - Peggy Place','86. M0310 - Sunshine Street',
+        '87. M0318 - Weber Court 1','88. M0319 - Weber Court 2','89. M0655 - Elliott Court to Link Road',
+        '90. M0729 - Spruce Ave to Link Road','91. M0617 - Beachside Court','92. M0725 - Robin Parade',
+        '93. M0671 - Holly Road (Road Reserve)','94. M0275 - Holly Road','95. M0663 - Fir Street',
+        '96. M0731 - Strachan Road','97. M0718 - Prescoter Drive','98. M0296 - Poinciana Avenue',
+        '99. M0291 - Peppermint Drive','100. M0311 - Sycamore Parade Drain','101. M0729 - Spruce Ave to Link Road',
+        '102. M0619 - Belah Court footpath (south side)','103. M0312 - Sycamore Parade Park',
+        '104. M0705 - Nth side Sycamore Pde, inc p/way between 32 and 34','105. M0503 - Robb Street Park - Off Clay Gully Road',
+        '106. M0631 - Carnoustie Court','107. M0304 - Sandy Drive','108. M0415 - Prospect Crescent Park',
+        '109. M0262 - Brookvale Drive','110. M0645 - Creekside Circuit East','111. M0793 - Brookvale Drive West',
+        '112. M0414 - Bunker & Brookvale Corner','113. M0268 - Eprapah Estate (Liriope Pl)','114. M0625 - Bunker Road'
+      ],
+      'Redland Bay': [
+        '115. M0607 - Anita Street','116. M0290 - Penrose Avenue',
+        '117. M0736 - Terrier Court to Jump Street (Between 8 & 9)','118. M0260 - Boundary Road Old Dump',
+        '119. M0735 - Terrier Court','120. M1021 - Falkirk Parade','121. M0661 - Falkirk and Gloria Parade',
+        '122. M0307 - Sunningdale Drive','123. M0309 - Sunningdale Drive 2','124. M0308 - Sunningdale Drive 1',
+        '125. M0286 - Marjorie Buckler Ave','126. M0293 - Pinelands Circuit Nature Link','127. M0263 - Buckler Court',
+        '128. M0694 - Main Street 1','129. M0693 - Main Road - closed off area (No 28 & 38)','130. M0272 - Gray Street',
+        '131. M0696 - Main Street Drain','132. M0781 - 133 Cane Street','133. M0692 - Main and Stradbroke Street',
+        '134. M0285 - Main and Pine Terrace','135. M0695 - Main Street 2','136. M0279 - Lanyard Place',
+        '137. M0082 - Moreton View Parade','138. M0295 - Pitt & Salisbury 2','139. M0294 - Pitt & Salisbury 1',
+        '140. M0737 - Toms Park','141. M0658 - Esplanade Park','142. M0685 - Lancaster Circuit',
+        '143. M0280 - Lime Street','144. M0657 - Emperor Drive to Apricot Place','145. M0656 - Emperor and Lime Street',
+        '146. M0271 - Gordon Road','147. M0267 - Emperor Drive','148. M0019 - Bayswood Circuit',
+        '149. M0298 - Potts Place','150. M0730 - St Bees Close - School of Arts Road','151. M0667 - Green Place Park',
+        '152. M0289 - Pelorus Street','153. M0618 - Bedarra Street Walkway (No 37 & 39)','154. M0670 - Highland Street',
+        '155. M0681 - Keirnan Street','156. M0092 - The Boulevard','157. M0084 - The Drop Off 1',
+        '158. M0085 - The Drop Off 2','159. M0258 - Baylink Drive','160. M0642 - Collins Street',
+        '161. M0281 - Lisa Street','162. M1688 - Christopher Street','163. M0278 - Junee Street',
+        '164. M0744 - Waterfront Easement','165. M0303 - Sandy Cove Place',
+        '166. M0726 - Seabrae Drive - Walkway (No 17 and 19)','167. M0255 - Azure Park',
+        '168. M0317 - Valencia Springs Drive','169. M0256 - Bankswood Drive','170. M0789 - Unwin Road Walkway',
+        '171. M1673 - Bridgewater Cresent Park Frontage','172. M1660 - Vanstone Way',
+        '173. M0785 - Joshua Place walkway','174. M0650 - Denham Boulevard 2','175. M0273 - Grevillea Street',
+        '176. M0817 - Grevillea Street to Muller','177. M0750 - Woodcrest Close','178. M0724 - Ridge Place',
+        '179. M0679 - Kalmai Drive Park'
+      ],
+      'Mt Cotton': [
+        '1. M0766 - Tffeta Drive','2. M0790 - Camlet Place Park','3. M0791 - Camlet Place Culdesac',
+        '4. M0321 - Balthazar Circuit','5. M0803 - Bayview Conservation Area','6. M0331 - Settlers Circuit',
+        '7. M0332 - Vineyard Drive','8. M0329 - Pimelea Crecent','9. M0330 - Seeana Drive',
+        '10. M0756 - Bunya Pine Place','11. M0758 - Elkhorn Street','12. M0322 - Baradine Street Park',
+        '13. M1676 - Sugargum to German Church Laneway','14. M0764 - Papaya Street to Citrus Circuit',
+        '15. M0324 - Jonquil Court','16. M0323 - Carissa Street','17. M0760 - Hibiscus Drive to conservation area',
+        '18. M0328 - Petunia Crescent','19. M0325 - Lillypilly Street','20. M0327 - Orchid Drive',
+        '21. M0762 - Orchid Drive to Hibiscus Drive','22. M0753 - Autumnwood Avenue'
+      ]
+    };
+
+    const listEl   = document.getElementById('assignParksList');
+    const searchEl = document.getElementById('suburbSearch');
+    const addSelBtn= document.getElementById('addSelectedSuburbs');
+
+    const selectedMap = new Map(); // siteId -> {siteId, suburb, label}
+
+    function parseSiteId(line){
+      const m = line.match(/\bM\d+\b/i);
+      return m ? m[0].toUpperCase() : '';
+    }
+
+    function makeItem(suburb, text){
+      const siteId = parseSiteId(text);
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <input type="checkbox" data-site-id="${siteId}" data-suburb="${suburb}" />
+        <span class="site-label">${text}</span>
+        <button type="button" class="note-btn" data-site-id="${siteId}" data-suburb="${suburb}" title="Add/View note">📝</button>
+      `;
+      return li;
+    }
+
+    function buildSuburbWithItems(name, idx){
+      const details = document.createElement('details');
+      details.className = 'suburb-details';
+
+      const summary = document.createElement('summary');
+      const left = document.createElement('div');
+      left.className = 'summary-left';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.id=`suburb_${idx}`;
+      const lab = document.createElement('label'); lab.setAttribute('for',`suburb_${idx}`); lab.textContent = name;
+      left.appendChild(cb); left.appendChild(lab);
+
+      const right = document.createElement('div');
+      right.className = 'summary-right';
+      right.innerHTML = `<input id="selall_${idx}" type="checkbox" data-suburb-select-all data-suburb="${name}">
+                         <label for="selall_${idx}">Select All</label>`;
+
+      summary.appendChild(left); summary.appendChild(right);
+      details.appendChild(summary);
+
+      const ol = document.createElement('ol'); ol.className='suburb-sites';
+      (SUBURB_ITEMS[name]||[]).forEach(line => ol.appendChild(makeItem(name, line)));
+      details.appendChild(ol);
+
+      right.querySelector('[data-suburb-select-all]').addEventListener('change', (e)=>{
+        const checked = e.target.checked;
+        ol.querySelectorAll('input[type="checkbox"][data-site-id]').forEach(box=>{
+          box.checked = checked;
+          box.dispatchEvent(new Event('change', {bubbles:true}));
+        });
+      });
+
+      return details;
+    }
+
+    function buildSimpleSuburb(name, idx){
+      const li = document.createElement('li'); li.className='suburb-row';
+      const left = document.createElement('div'); left.className='suburb-row-left';
+      const cb = document.createElement('input'); cb.type='checkbox'; cb.id=`suburb_${idx}`; cb.value=name;
+      const lab = document.createElement('label'); lab.setAttribute('for',`suburb_${idx}`); lab.textContent=name;
+      left.appendChild(cb); left.appendChild(lab);
+
+      const right = document.createElement('div'); right.className='summary-right';
+      right.innerHTML = `<input id="selall_${idx}" type="checkbox" data-suburb-select-all data-suburb="${name}">
+                         <label for="selall_${idx}">Select All</label>`;
+      right.querySelector('[data-suburb-select-all]').addEventListener('change', (e)=>{
+        cb.checked = e.target.checked;
+        cb.dispatchEvent(new Event('change', {bubbles:true}));
+      });
+
+      li.appendChild(left);
+      li.appendChild(right);
+      return li;
+    }
+
+    function renderList(filter=''){
+      listEl.innerHTML='';
+      const q=(filter||'').trim().toLowerCase();
+      SUBURBS.filter(s=>!q||s.toLowerCase().includes(q)).forEach((name,i)=>{
+        if(Array.isArray(SUBURB_ITEMS[name]) && SUBURB_ITEMS[name].length){
+          listEl.appendChild(buildSuburbWithItems(name, i));
+        }else{
+          listEl.appendChild(buildSimpleSuburb(name, i));
+        }
+      });
+      if(!listEl.children.length){
+        const p=document.createElement('p'); p.className='muted-note'; p.textContent='No suburbs match your search.'; listEl.appendChild(p);
+      }
+    }
+    renderList();
+    searchEl.addEventListener('input', e=>renderList(e.target.value));
+
+    function rebuildBasketFromSelection(){
+      const grouped = new Map();
+      selectedMap.forEach(({siteId, suburb})=>{
+        if(!grouped.has(suburb)) grouped.set(suburb, []);
+        grouped.get(suburb).push(siteId);
+      });
+
+      _basket.length=0;
+      grouped.forEach((ids, suburb)=> _basket.push({zone:suburb, siteIds:ids}));
+      renderBasket();
+    }
+
+    listEl.addEventListener('change', (e)=>{
+      const t = e.target;
+      if(t.matches('input[type="checkbox"][data-site-id]')){
+        const id=t.dataset.siteId, suburb=t.dataset.suburb, label=t.closest('li')?.querySelector('.site-label')?.textContent || id;
+        if(t.checked) selectedMap.set(id, {siteId:id, suburb, label});
+        else selectedMap.delete(id);
+        rebuildBasketFromSelection();
+      }
+    });
+
+    addSelBtn.addEventListener('click', ()=>{
+      // also push currently ticked “simple suburbs”
+      listEl.querySelectorAll('.suburb-row input[type="checkbox"]:checked').forEach(cb=>{
+        _basket.push({zone:cb.value, siteIds:[]});
+      });
+      renderBasket();
+    });
+
+    // ---------- Permanent Notes (Firestore: parkNotes/{siteId}) ----------
+    const modal = document.getElementById('noteModal');
+    const noteTitle = document.getElementById('noteModalTitle');
+    const noteTextarea = document.getElementById('noteTextarea');
+    const noteSaveBtn = document.getElementById('noteSaveBtn');
+    const noteHint = document.getElementById('noteHint');
+    const noteCloseBtn = document.getElementById('noteCloseBtn');
+
+    let _currentNote = { siteId:'', suburb:'', button:null };
+
+    async function loadNote(siteId){
+      try{
+        const d = await db.collection('parkNotes').doc(siteId).get();
+        return d.exists ? (d.data().text||'') : '';
+      }catch(_){ return ''; }
+    }
+    async function saveNote(siteId, suburb, text){
+      const payload = {
+        siteId, suburb, text,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: currentUser ? currentUser.uid : null
+      };
+      await db.collection('parkNotes').doc(siteId).set(payload, {merge:true});
+    }
+
+    function openNote(siteId, suburb, buttonEl){
+      _currentNote = { siteId, suburb, button: buttonEl };
+      noteTitle.textContent = `Note — ${siteId} (${suburb})`;
+      noteTextarea.value = 'Loading…';
+      noteSaveBtn.disabled = !_isAdmin;
+      noteHint.textContent = _isAdmin ? '' : 'View-only: you are not an admin.';
+
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden','false');
+
+      loadNote(siteId).then(txt=>{
+        noteTextarea.value = txt || '';
+        if(txt && buttonEl){ buttonEl.classList.add('has-note'); }
+      }).catch(()=>{
+        noteTextarea.value = '';
+      });
+    }
+    function closeNote(){
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden','true');
+    }
+
+    noteCloseBtn.addEventListener('click', closeNote);
+    modal.addEventListener('click', (e)=>{ if(e.target===modal) closeNote(); });
+    noteSaveBtn.addEventListener('click', async ()=>{
+      if(!_isAdmin){ return; }
+      try{
+        await saveNote(_currentNote.siteId, _currentNote.suburb, noteTextarea.value.trim());
+        if(_currentNote.button){ _currentNote.button.classList.toggle('has-note', !!noteTextarea.value.trim()); }
+        toast('Note saved');
+        closeNote();
+      }catch(e){
+        console.warn(e); toast('Failed to save note');
+      }
+    });
+
+    // Open modal from any 📝 button
+    listEl.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.note-btn');
+      if(!btn) return;
+      const siteId = btn.dataset.siteId || '';
+      const suburb = btn.dataset.suburb || '';
+      if(!siteId) return;
+      openNote(siteId, suburb, btn);
+    });
+  </script>
+</body>
+</html>

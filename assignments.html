@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Current Assignments</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="logo.png" type="image/png" />
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --ink:#0f172a; --ink-2:#111827; --muted:#e5e7eb; --bg:#f6f7fb; --card:#ffffff;
+      --accent:#d11e2b; --accent-600:#b71a24; --soft:#f8fafc;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg); color:var(--ink);
+    }
+
+    .header{
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:12px 18px; background:#fff; border-bottom:1px solid var(--muted);
+      position:sticky; top:0; z-index:5;
+    }
+    .brand{ display:flex; align-items:center; gap:12px; min-width:0; }
+    .brand img{ height:44px; display:block }
+    .brand .title{ font-size:20px; font-weight:800; color:var(--ink-2) }
+    .userbox{ display:flex; align-items:center; gap:10px }
+    .email{ font-weight:600; color:#334155; background:#f1f5f9; border:1px solid #e2e8f0; padding:6px 10px; border-radius:9px; }
+
+    .container{ max-width:1120px; margin:22px auto; padding:0 16px }
+    .section-title{ font-size:18px; font-weight:800; margin: 4px 2px 14px; color:var(--ink-2) }
+
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px }
+    @media (max-width:900px){ .grid{ grid-template-columns: 1fr } }
+
+    .card{
+      background:var(--card); border:1px solid var(--muted); border-radius:16px;
+      box-shadow:0 8px 26px rgba(16,24,40,.08);
+      padding:14px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .card h3{ margin:0; font-size:16px; font-weight:800 }
+    .muted{ color:#475569; font-size:13px }
+
+    .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap }
+    .btn{
+      border:0; border-radius:10px; padding:9px 12px; font-weight:800; cursor:pointer; color:#fff;
+      background:var(--ink);
+    }
+    .btn:hover{ background:#1f2937 }
+    .btn-red{ background:var(--accent) }
+    .btn-red:hover{ background:var(--accent-600) }
+    .pill{ padding:4px 8px; border-radius:999px; font-weight:800; font-size:12px; white-space:nowrap }
+
+    .pill-gray{ background:#f1f5f9; color:#334155; border:1px solid #e2e8f0 }
+    .pill-amber{ background:#fee2e2; color:#7f1d1d; border:1px solid #fecaca }
+    .pill-green{ background:#dcfce7; color:#065f46; border:1px solid #bbf7d0 }
+
+    .kvs{ display:flex; flex-wrap:wrap; gap:8px; font-size:13px; color:#475569 }
+    .kvs > div{ display:inline-flex; align-items:center; gap:6px; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 8px; border-radius:10px }
+
+    .modal-backdrop{
+      position:fixed; inset:0; background:rgba(15,23,42,.38); display:none; align-items:center; justify-content:center; z-index:40;
+    }
+    .modal-backdrop.show{ display:flex }
+    .modal{
+      width:min(920px, 94vw); max-height:86vh; overflow:auto;
+      background:#fff; border:1px solid var(--muted); border-radius:16px; box-shadow:0 12px 36px rgba(16,24,40,.20);
+    }
+    .modal header{
+      position:sticky; top:0; background:#fff; border-bottom:1px solid #eef2f7;
+      padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .modal header h3{ margin:0; font-size:16px; font-weight:800 }
+    .modal header .close{ border:0; background:#f1f5f9; border:1px solid #e2e8f0; color:#111827; border-radius:10px; padding:6px 10px; font-weight:800; cursor:pointer }
+    .modal .body{ padding:14px 16px; }
+    .sites{ display:grid; gap:8px }
+    .site-row{
+      display:grid; grid-template-columns: 110px 1fr auto; align-items:center; gap:10px;
+      padding:10px; border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+    }
+    @media (max-width:680px){
+      .site-row{ grid-template-columns: 90px 1fr }
+      .site-row .right{ grid-column: 1 / -1 }
+    }
+    .note{
+      font-size:13px; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; border-left:3px solid var(--accent);
+      border-radius:8px; padding:8px 10px; white-space:pre-wrap;
+    }
+    .sub{ color:#64748b; font-size:12px }
+  </style>
+
+  <style>
+    .assign-site-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff}
+    .assign-site-row .sid{font-weight:800}
+    .assign-site-row .note{font-size:13px;color:#64748b;margin-top:4px}
+    .pill.assigned{background:#fee2e2;border:1px solid #fecaca;color:#7f1d1d}
+    .pill.in_progress{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
+    .pill.completed{background:#ecfdf5;border:1px solid #bbf7d0;color:#065f46}
+  </style>
+</head>
+<body>
+
+  <!-- Firebase (+ guard) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="auth-guard.js"></script>
+
+  <header class="header">
+    <div class="brand">
+      <img src="logo.png" alt="Bayside" onerror="this.style.display='none'">
+      <div class="title">Current assignments</div>
+    </div>
+    <div class="userbox">
+      <div id="userEmail" class="email">—</div>
+      <button id="logoutBtn" class="btn" type="button">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h2 class="section-title">Live tasks</h2>
+    <section id="assignments" class="grid"></section>
+  </main>
+
+  <!-- Modal -->
+  <div id="detailsBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <header>
+        <h3 id="modalTitle">Assignment details</h3>
+        <div style="display:flex; align-items:center; gap:8px">
+          <button id="downloadBtn" class="btn">Download report</button>
+          <a id="openMapBtn" class="btn btn-red" href="#" target="_blank" rel="noopener">Open in map</a>
+          <button class="close" id="closeModalBtn">Close</button>
+        </div>
+      </header>
+      <div class="body">
+        <div id="assignmentMeta" class="kvs" style="margin-bottom:10px"></div>
+        <div id="sitesList" class="sites"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <script>
+  (function(){
+    const db = firebase.firestore();
+
+    /* ---------- Auth header ---------- */
+    const emailEl  = document.getElementById('userEmail');
+    const logoutBtn = document.getElementById('logoutBtn');
+    firebase.auth().onAuthStateChanged(u => {
+      if(!u){ location.href = 'login.html'; return; }
+      emailEl.textContent = u.email || 'Signed in';
+    });
+    logoutBtn.addEventListener('click', async () => {
+      try { await firebase.auth().signOut(); } catch(_) {}
+      location.replace('login.html');
+    });
+
+    /* ---------- Helpers ---------- */
+    const fmt = (ts) => {
+      if(!ts) return '';
+      const d = ts?.toDate ? ts.toDate() : (ts instanceof Date ? ts : null);
+      return d ? d.toLocaleString() : '';
+    };
+    const badge = (status) => {
+      const s = (status||'assigned').toLowerCase();
+      const map = { assigned:'pill-amber', 'in_progress':'pill-gray', completed:'pill-green' };
+      const txt = s.replace('_',' ');
+      return `<span class="pill ${map[s]||'pill-gray'}">${txt.charAt(0).toUpperCase()+txt.slice(1)}</span>`;
+    };
+    function getPerSiteForId(perSite, rawId){
+      if (!perSite) return undefined;
+      const idU = String(rawId).toUpperCase();
+      const idL = idU.toLowerCase();
+      const noM = idU.replace(/^M/,'');
+      return perSite[idU] ?? perSite[idL] ?? perSite[noM];
+    }
+    const escapeHTML = (s='') =>
+      s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+    /* ---------- Card live counter ---------- */
+    const liveCounters = {};
+    function attachLiveCompletionCounter(assignmentId, assignmentData, chipEl){
+      if (!chipEl) return;
+      if (liveCounters[assignmentId]) { try{ liveCounters[assignmentId](); }catch(_){} }
+
+      let siteIds = (assignmentData.siteIds||[]).map(s=>String(s).toUpperCase());
+      let perSite = assignmentData.perSite || {};
+      const latest = {};
+
+      function recompute(){
+        let done = 0;
+        for (const sid of siteIds){
+          const ps = getPerSiteForId(perSite, sid) || {};
+          const st = (latest[sid]?.status || ps.status || '').toLowerCase();
+          if (st === 'completed') done++;
+        }
+        chipEl.textContent = String(done);
+      }
+
+      const unsubAssign = db.collection('assignments').doc(assignmentId).onSnapshot(s=>{
+        const d = s.data()||{};
+        siteIds = (d.siteIds||[]).map(x=>String(x).toUpperCase());
+        perSite = d.perSite||{};
+        recompute();
+      });
+
+      const logUnsubs=[];
+      const chunk=10;
+      const uniq = Array.from(new Set(siteIds));
+      for(let i=0;i<uniq.length;i+=chunk){
+        const batch=uniq.slice(i,i+chunk);
+        const u = db.collection('work_logs').where('siteId','in',batch).onSnapshot(snap=>{
+          snap.docChanges().forEach(ch=>{
+            const w = ch.doc.data()||{};
+            const sid = String(w.siteId||'').toUpperCase();
+            const t = (w.completedAt?.toMillis?.()??w.timestamp?.toMillis?.()??w.createdAt?.toMillis?.()??0);
+            if (!latest[sid] || t > latest[sid]._t){
+              latest[sid] = { status:(w.status||'').toLowerCase(), _t:t };
+            }
+          });
+          recompute();
+        });
+        logUnsubs.push(u);
+      }
+
+      liveCounters[assignmentId] = () => { try{unsubAssign();}catch(_){}
+        logUnsubs.forEach(fn=>{ try{fn();}catch(_){}}); };
+    }
+
+    /* ---------- Assignments list ---------- */
+    const listEl = document.getElementById('assignments');
+    function renderAssignmentCard(doc){
+      const d = doc.data() || {};
+      const siteIds = Array.isArray(d.siteIds) ? d.siteIds.map(s=>String(s).toUpperCase()) : [];
+      const perSite = d.perSite || {};
+      const total = siteIds.length;
+      const baselineDone = siteIds.filter(id => (getPerSiteForId(perSite, id)?.status||'').toLowerCase()==='completed').length;
+
+      const el = document.createElement('div');
+      el.className = 'card';
+
+      const title = document.createElement('h3');
+      title.textContent = (d.userName || 'Operator') + (d.zone ? ` · ${d.zone}` : '');
+      el.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'kvs';
+      meta.innerHTML = `
+        <div><strong><span class="js-done">${baselineDone}</span>/${total}</strong> completed</div>
+        ${d.dueDate ? `<div>Due: ${fmt(d.dueDate).split(',')[0]}</div>` : ''}
+        ${d.status ? `<div>Status: ${badge(d.status)}</div>` : ''}
+      `;
+      el.appendChild(meta);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const muted = document.createElement('div');
+      muted.className = 'muted';
+      muted.textContent = siteIds.length ? siteIds.join(', ') : '—';
+      row.appendChild(muted);
+
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn btn-red';
+      openBtn.textContent = 'View details';
+      openBtn.addEventListener('click', () => openDetails(doc.id));
+      row.appendChild(openBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn';
+      delBtn.textContent = 'Delete task';
+      delBtn.addEventListener('click', async () => {
+        if (!confirm('Delete this task?')) return;
+        await firebase.firestore().collection('assignments').doc(doc.id).delete();
+      });
+      row.appendChild(delBtn);
+
+      el.appendChild(row);
+
+      const chipDone = meta.querySelector('.js-done');
+      attachLiveCompletionCounter(doc.id, d, chipDone);
+
+      return el;
+    }
+
+    db.collection('assignments').onSnapshot(snap => {
+      listEl.innerHTML = '';
+      if (snap.empty){
+        const c = document.createElement('div');
+        c.className = 'card';
+        c.innerHTML = '<div class="muted">No assignments yet.</div>';
+        listEl.appendChild(c);
+        return;
+      }
+      const docs = [];
+      snap.forEach(doc => docs.push(doc));
+      docs.sort((a,b)=> (a.data().dueDate?.toDate?.() ?? 0) - (b.data().dueDate?.toDate?.() ?? 0));
+      docs.forEach(doc => listEl.appendChild(renderAssignmentCard(doc)));
+    });
+
+    /* ---------- Modal (live rows: status + notes) ---------- */
+    const backdrop   = document.getElementById('detailsBackdrop');
+    const closeBtn   = document.getElementById('closeModalBtn');
+    const modalTitle = document.getElementById('modalTitle');
+    const metaBox    = document.getElementById('assignmentMeta');
+    const sitesBox   = document.getElementById('sitesList');
+    const openMapBtn = document.getElementById('openMapBtn');
+    const downloadBtn= document.getElementById('downloadBtn');
+
+    let lastFocusEl = null;
+    function showModal(){ lastFocusEl = document.activeElement; backdrop.classList.add('show'); backdrop.setAttribute('aria-hidden','false'); closeBtn?.focus(); }
+    function hideModal(){ if (lastFocusEl?.focus) lastFocusEl.focus(); backdrop.classList.remove('show'); backdrop.setAttribute('aria-hidden','true'); stopDetailsStreams(); }
+    closeBtn.addEventListener('click', hideModal);
+    backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) hideModal(); });
+
+    // Streams + caches
+    let detailsUnsubAssign = null;
+    let detailsLogUnsubs   = [];
+    let latestFromLogs     = {};   // sid -> {status, note, _t}
+    let currentPerSite     = {};   // snapshot from assignments doc
+    let currentSiteIds     = [];   // uppercase sids for the current task
+    let latestDocData      = null; // used by PDF
+
+    function stopDetailsStreams(){
+      if (detailsUnsubAssign){ try{ detailsUnsubAssign(); }catch(_){} detailsUnsubAssign=null; }
+      detailsLogUnsubs.forEach(u=>{ try{ u(); }catch(_){} });
+      detailsLogUnsubs = [];
+      latestFromLogs = {};
+    }
+
+    function buildRows(siteIds){
+      sitesBox.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      siteIds.forEach(id => {
+        const row = document.createElement('div');
+        row.className = 'site-row';
+        row.dataset.sid = id;
+
+        const left = document.createElement('div');
+        left.innerHTML = `<strong>${id}</strong>`; // no 'Assigned' pill per row
+
+        const mid = document.createElement('div');
+        mid.className = 'js-note';
+        mid.innerHTML = `<div class="sub">No notes</div>`;
+
+        const right = document.createElement('div');
+        right.className = 'right sub js-completed';
+        right.textContent = '';
+
+        row.appendChild(left);
+        row.appendChild(mid);
+        row.appendChild(right);
+        frag.appendChild(row);
+      });
+      sitesBox.appendChild(frag);
+    }
+
+    function effectiveForSite(id){
+      const ps  = getPerSiteForId(currentPerSite, id) || {};
+      const log = latestFromLogs[id];
+      let status = (ps.status || '').toLowerCase();
+      let note   = (ps.note || '').trim();
+      let completedAt = ps.completedAt || null;
+      if (log){
+        if (log.status) status = String(log.status).toLowerCase();
+        if (log.note)   note   = String(log.note).trim();
+      }
+      return { status, note, completedAt };
+    }
+
+    function updateRow(id){
+      const row = sitesBox.querySelector(`.site-row[data-sid="${id}"]`);
+      if (!row) return;
+      const { status, note, completedAt } = effectiveForSite(id);
+      const noteEl = row.querySelector('.js-note');
+      const doneEl = row.querySelector('.js-completed');
+
+      noteEl.innerHTML = note
+        ? `<div class="note" style="border-left-color:#2563eb">Operator: ${escapeHTML(note)}</div>`
+        : `<div class="sub">No notes</div>`;
+
+      if ((status||'') === 'completed'){
+        const when = completedAt ? fmt(completedAt).split(',')[0] : '';
+        doneEl.textContent = when ? `Completed: ${when}` : 'Completed';
+      } else {
+        doneEl.textContent = '';
+      }
+    }
+
+    async function openDetails(assignmentId){
+      stopDetailsStreams();
+
+      detailsUnsubAssign = db.collection('assignments').doc(assignmentId)
+        .onSnapshot((snap) => {
+          if (!snap.exists) { alert('Assignment not found'); return; }
+          const d = snap.data() || {};
+          latestDocData  = d;
+          currentPerSite = d.perSite || {};
+          currentSiteIds = (d.siteIds || []).map(s=>String(s).toUpperCase());
+
+          if (!sitesBox.firstChild) buildRows(currentSiteIds);
+
+          modalTitle.textContent = `${d.userName || 'Operator'} — ${d.zone || 'Task'}`;
+          const focusCsv = currentSiteIds.join(',');
+          openMapBtn.href = focusCsv ? `AssignedParks.html?focus=${encodeURIComponent(focusCsv)}&task=${encodeURIComponent(snap.id)}` : '#';
+          openMapBtn.onclick = () => { try { localStorage.setItem('currentTaskId', snap.id); } catch(_) {} };
+
+          const done = currentSiteIds.reduce((n,id)=> {
+            const st = (getPerSiteForId(currentPerSite, id)?.status || '').toLowerCase();
+            return n + (st === 'completed' ? 1 : 0);
+          }, 0);
+          metaBox.innerHTML = `
+            <div><strong>${done}/${currentSiteIds.length}</strong> completed</div>
+            ${d.dueDate ? `<div>Due: ${fmt(d.dueDate).split(',')[0]}</div>` : ''}
+            ${d.status ? `<div>Overall: ${badge(d.status)}</div>` : ''}
+            ${d.startedAt ? `<div>Started: ${fmt(d.startedAt).split(',')[0]}</div>` : ''}
+          `;
+
+          // reflect current snapshot
+          currentSiteIds.forEach(id => updateRow(id));
+
+          // start work_logs listeners once per open
+          if (!detailsLogUnsubs.length && currentSiteIds.length){
+            const uniq = Array.from(new Set(currentSiteIds));
+            const step = 10;
+            for (let i=0;i<uniq.length;i+=step){
+              const batch = uniq.slice(i,i+step);
+              const u = db.collection('work_logs').where('siteId','in',batch).onSnapshot(s=>{
+                s.docChanges().forEach(ch=>{
+                  const w   = ch.doc.data()||{};
+                  const sid = String(w.siteId||'').toUpperCase();
+                  const t   = (w.completedAt?.toMillis?.()??w.timestamp?.toMillis?.()??w.createdAt?.toMillis?.()??0);
+                  if (!latestFromLogs[sid] || t > latestFromLogs[sid]._t){
+                    latestFromLogs[sid] = { status:(w.status||''), note:(w.note||''), _t:t };
+                    updateRow(sid);
+                  }
+                });
+              });
+              detailsLogUnsubs.push(u);
+            }
+          }
+
+          showModal();
+          downloadBtn.onclick = () => downloadReport(assignmentId);
+        }, err => alert('Failed to load details: ' + (err.message||err)));
+    }
+
+    /* ---------- PDF (parks_report-style) with Logo + Date + Notes ---------- */
+
+    // Load logo.png as a data URL and detect PNG/JPEG for jsPDF
+    async function loadLogoDataURL() {
+      const res = await fetch('logo.png', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('Logo not found');
+      const blob = await res.blob();
+      const format = /png/i.test(blob.type) ? 'PNG' : 'JPEG';
+      return await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve({ dataUrl: fr.result, format });
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+    }
+
+    async function downloadReport(assignmentId){
+      const { jsPDF } = window.jspdf || {};
+      if (!jsPDF) { alert('PDF library not loaded'); return; }
+
+      const fmtDMY = (v) => {
+        if (!v) return '';
+        const d = v?.toDate ? v.toDate() : (v instanceof Date ? v : null);
+        if (!d) return '';
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yy = d.getFullYear();
+        return `${dd}/${mm}/${yy}`;
+      };
+      const todayDMY = () => {
+        const d = new Date();
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yy = d.getFullYear();
+        return `${dd}/${mm}/${yy}`;
+      };
+
+      // Ensure we have the assignment doc (latestDocData set by openDetails)
+      let d = latestDocData;
+      if (!d) {
+        const snap = await firebase.firestore().collection('assignments').doc(assignmentId).get();
+        if (!snap.exists) { alert('Assignment missing'); return; }
+        d = snap.data() || {};
+      }
+
+      // Prefer live caches used by the modal
+      const siteIds = (Array.isArray(currentSiteIds) && currentSiteIds.length
+        ? currentSiteIds
+        : (d.siteIds || []).map(s => String(s).toUpperCase()));
+      const perSite = (currentPerSite && Object.keys(currentPerSite).length)
+        ? currentPerSite
+        : (d.perSite || {});
+
+      // Build effective rows (perSite + freshest work_logs)
+      const rowsAll = siteIds.map(id => {
+        const ps  = (perSite[id] || perSite[id?.toLowerCase?.()] || perSite[String(id).replace(/^M/,'')]) || {};
+        const log = latestFromLogs ? latestFromLogs[id] : null;
+
+        let status      = String(ps.status || '').toLowerCase();
+        let note        = (ps.note || '').trim();
+        let completedAt = ps.completedAt || null;
+        const updatedAt = ps.updatedAt   || null;
+
+        if (log) {
+          if (log.status) status = String(log.status).toLowerCase();
+          if (log.note)   note   = String(log.note).trim();
+          if (!completedAt && status === 'completed' && log._t) completedAt = new Date(log._t);
+        }
+        if (!completedAt && status === 'completed' && updatedAt) completedAt = updatedAt;
+
+        const whenDate = completedAt?.toDate ? completedAt.toDate()
+                        : (completedAt instanceof Date ? completedAt : null);
+        const whenStr  = whenDate ? fmtDMY(whenDate) : '';
+
+        return { id, status, when: whenDate || null, whenStr, note };
+      });
+
+      const rowsCompleted = rowsAll.filter(r => r.status === 'completed');
+      const rows = rowsCompleted.length ? rowsCompleted : rowsAll;
+
+      // Sort newest completion first (blank dates last), then by ID
+      rows.sort((a,b)=>{
+        const ta = a.when ? a.when.getTime() : -1;
+        const tb = b.when ? b.when.getTime() : -1;
+        if (tb !== ta) return tb - ta;
+        return a.id.localeCompare(b.id);
+      });
+
+      // PDF layout
+      const doc = new jsPDF({ unit:'pt', format:'a4' });
+      const marginL = 56, marginR = 56;
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const contentW = pageW - marginL - marginR;
+
+      let y = 56;
+
+      // Add logo if available
+      try {
+        const { dataUrl, format } = await loadLogoDataURL();
+        const logoW = 120;   // tweak if needed
+        const logoH = 40;
+        doc.addImage(dataUrl, format, marginL, y, logoW, logoH);
+        y += logoH + 12;
+      } catch (e) {
+        // no logo; just add a bit of top spacing
+        y = 72;
+      }
+
+      // Title
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(18);
+      doc.text(`Parks Report ${todayDMY()}`, marginL, y);
+      y += 22;
+
+      // Subtitle (operator + zone)
+      const subtitle = [d.userName || 'Operator', d.zone || ''].filter(Boolean).join(' — ');
+      if (subtitle) {
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(12);
+        doc.text(subtitle, marginL, y);
+        y += 16;
+      }
+      y += 8;
+
+      // Columns
+      const colIdW   = 120;                          // Park Number
+      const colDateW = 120;                          // Date Completed
+      const colNoteW = contentW - colIdW - colDateW; // Notes
+
+      // Header row
+      doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text('Park Number',   marginL,                       y);
+      doc.text('Date Completed',marginL + colIdW,             y);
+      doc.text('Notes',         marginL + colIdW + colDateW,  y);
+      y += 8;
+      doc.setLineWidth(0.6);
+      doc.line(marginL, y, marginL + contentW, y);
+      y += 14;
+
+      // Body
+      doc.setFont('helvetica','normal');
+      const lineH = 16;
+
+      for (const r of rows) {
+        const noteText = r.note || '-';
+        const wrappedNote = doc.splitTextToSize(noteText, colNoteW);
+
+        const needH = Math.max(lineH, wrappedNote.length * lineH);
+        if (y + needH > pageH - 56) {
+          doc.addPage();
+          y = 56;
+
+          // reprint headers on new page
+          doc.setFont('helvetica','bold'); doc.setFontSize(12);
+          doc.text('Park Number',   marginL,                       y);
+          doc.text('Date Completed',marginL + colIdW,             y);
+          doc.text('Notes',         marginL + colIdW + colDateW,  y);
+          y += 8; doc.setLineWidth(0.6); doc.line(marginL, y, marginL + contentW, y);
+          y += 14;
+          doc.setFont('helvetica','normal');
+        }
+
+        doc.text(r.id,              marginL,                 y);
+        doc.text(r.whenStr || '',   marginL + colIdW,       y);
+        doc.text(wrappedNote,       marginL + colIdW + colDateW, y);
+
+        y += Math.max(lineH, wrappedNote.length * lineH);
+      }
+
+      const filename =
+        `${(d.userName || 'operator').toLowerCase().replace(/\s+/g,'-')}` +
+        `-${(d.zone||'task').toLowerCase().replace(/\s+/g,'-')}-parks-report.pdf`;
+      doc.save(filename);
+    }
+  })();
+  </script>
+</body>
+</html>
