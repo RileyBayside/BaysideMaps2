@@ -215,6 +215,32 @@
       });
     })();
   </script>
+  <script>
+/** Global index of sites: M#### -> { latLng, layer } */
+window.BS_SITES = window.BS_SITES || {};
+
+/** Call this from script.js when you create each site layer */
+window.BS_registerSite = function(id, layer){
+  if (!id || !layer) return;
+  const sid = String(id).trim().toUpperCase();
+
+  // Figure out a point to route to (marker position or polygon centroid)
+  const latLng =
+    typeof layer.getLatLng === 'function'
+      ? layer.getLatLng()
+      : (typeof layer.getBounds === 'function'
+          ? layer.getBounds().getCenter()
+          : null);
+
+  if (!latLng) return;
+
+  // Store in the global index
+  window.BS_SITES[sid] = { latLng, layer };
+
+  // Also tag the layer so other utilities can discover the ID
+  if (layer.options) layer.options.siteId = sid;
+};
+</script>
 
   <!-- Filter sidebar to assigned IDs shown in ?focus=... -->
   <script>
