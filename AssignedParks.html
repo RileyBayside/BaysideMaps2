@@ -104,7 +104,7 @@
       background:#dcfce7; border-color:#bbf7d0; color:#065f46;
     }
 
-    /* Navigate button */
+    /* Auto-inserted Navigate button */
     .bs-nav-btn{
       appearance:none; border-radius:10px; border:1px solid #e2e8f0;
       background:#1f2937; color:#fff; padding:6px 10px; font-weight:800;
@@ -120,12 +120,13 @@
     }
     #gnavPanel .bar{
       display:flex; align-items:center; justify-content:space-between;
-      padding:8px 10px; border-bottom:1px solid #e5e7eb;
+      gap:8px; padding:8px 10px; border-bottom:1px solid #e5e7eb;
       font:600 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     }
     #gnavPanel .bar button{
-      background:#111827; color:#fff; border:0; border-radius:8px; padding:6px 8px; margin-left:6px;
+      background:#111827; color:#fff; border:0; border-radius:8px; padding:6px 8px;
     }
+    #gnavPanel .bar button#gnavCloseBtn{ background:#b91c1c; }
     #gnavSteps{ height:38%; overflow:auto; padding:8px 10px; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
   </style>
 </head>
@@ -182,10 +183,10 @@
   <div id="gnavPanel">
     <div class="bar">
       <span>Navigation</span>
-      <div>
+      <div style="display:flex; gap:6px;">
         <button id="gnavFollowBtn" type="button">Follow me</button>
         <button id="gnavOpenBtn"   type="button">Open in Google Maps</button>
-        <button id="gnavCloseBtn"  type="button" style="background:#b91c1c">Close</button>
+        <button id="gnavCloseBtn"  type="button">Close</button>
       </div>
     </div>
     <div id="gnavMap" style="width:100%; height:62%;"></div>
@@ -357,9 +358,9 @@
     }
 
     // ---------- injection & sync ----------
-    const siteButtons   = new Map(); // siteId -> "Mark done" button
-    const siteInputs    = new Map(); // siteId -> notes input
-    const siteNavButtons= new Map(); // siteId -> "Navigate" button
+    const siteButtons = new Map(); // siteId -> "Mark done" button
+    const siteInputs  = new Map(); // siteId -> notes input
+    const siteNavButtons = new Map(); // siteId -> "Navigate" button
 
     // optimistic state (keep UI sticky until listeners refresh)
     const optimistic = new Map();  // siteId -> {status, t}
@@ -389,17 +390,16 @@
 
         siteInputs.set(sid, input);
 
-        // Ensure "Mark done" button
+        // 1) Ensure "Mark done" button exists
         let btn = siteButtons.get(sid);
         if (!btn || btn.dataset.siteId !== sid){
-          if (btn && btn.parentElement) btn.parentElement.removeChild(btn);
+          if (btn && btn.parentElement) btn.parentElement.remove();
 
           btn = document.createElement('button');
           btn.type='button';
           btn.className='bs-done-btn';
           btn.dataset.siteId = sid;
           btn.textContent='Mark done';
-          input.insertAdjacentElement('afterend', btn);
           siteButtons.set(sid, btn);
 
           btn.addEventListener('click', async (e)=>{
@@ -419,6 +419,7 @@
             }
           });
 
+          // Keep notes in sync
           const saveNote = async () => {
             const opt = optGet(sid);
             const eff = opt ? opt.status : effectiveFor(sid).status || (btn.classList.contains('done') ? 'completed' : 'in_progress');
@@ -428,18 +429,18 @@
           input.addEventListener('blur',   saveNote);
         }
 
-        // Ensure "Navigate" button
+        // 2) Ensure "Navigate" button exists and is placed before "Mark done"
         let nav = siteNavButtons.get(sid);
         if (!nav || nav.dataset.siteId !== sid){
           if (nav && nav.parentElement) nav.parentElement.remove();
 
           nav = document.createElement('button');
-          nav.type = 'button';
-          nav.className = 'bs-nav-btn';
+          nav.type='button';
+          nav.className='bs-nav-btn';
           nav.dataset.siteId = sid;
-          nav.textContent = 'Navigate';
+          nav.textContent='Navigate';
 
-          // Insert nav first, then the done button after it
+          // Place nav first, then mark-done after it
           input.insertAdjacentElement('afterend', nav);
           nav.insertAdjacentElement('afterend', btn);
 
@@ -447,9 +448,18 @@
 
           nav.addEventListener('click', (e)=>{
             e.preventDefault(); e.stopPropagation();
-            if (typeof startInPageNav === 'function') startInPageNav(sid);
-            else alert('Navigation module not ready yet.');
+            if (typeof startInPageNav === 'function') {
+              startInPageNav(sid);
+            } else {
+              alert('Navigation module not ready yet.');
+            }
           });
+        } else {
+          // Ensure order nav -> mark-done (in case DOM moved)
+          if (btn.previousElementSibling !== nav){
+            input.insertAdjacentElement('afterend', nav);
+            nav.insertAdjacentElement('afterend', btn);
+          }
         }
 
         // reflect EFFECTIVE state -> UI (optimistic overrides freshest logs while fresh)
@@ -491,7 +501,7 @@
       if (!u) return;
       const uid = u.uid;
 
-      // work out which site IDs are shown
+      // Which sites appear (for live filtering of logs)
       const params = new URLSearchParams(location.search);
       let ids = (params.get('focus')||'')
         .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
@@ -661,6 +671,10 @@
 
   <!-- ========= In-page Google Maps directions + Follow-me ========= -->
   <script>
+/* Your keys (for clarity). The script tag below uses the Maps JS key. */
+const GOOGLE_MAPS_JS_KEY = "AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY";
+const ROUTES_API_KEY     = "AIzaSyAN646HVsSdNnwQXHiOrhyb-Ekc9l-wTIo"; // keep enabled on same project
+
 /* ---------- Registry: capture site coordinates from Leaflet layers ---------- */
 window.BS_SITES = {}; // { M0123: {id, layer, lat, lng} }
 
@@ -737,7 +751,7 @@ function initGNav(){
 async function startInPageNav(siteId){
   siteId = String(siteId||'').toUpperCase();
   const s = window.BS_SITES[siteId];
-  if (!s) { alert(`Sorry, couldn't find coordinates for ${siteId} yet. Try zooming the map until its marker appears, then retry.`); return; }
+  if (!s) { alert(`Sorry, couldn't find coordinates for ${siteId} yet. Try zooming until its marker appears, then retry.`); return; }
 
   const dest = { lat: s.lat, lng: s.lng };
   if (!window.__GNAV) window.__GNAV = initGNav();
@@ -794,8 +808,8 @@ function toggleFollow(G){
   }, console.warn, { enableHighAccuracy:true, maximumAge:2000 });
 }
 
-/* ---------- (Optional) extra wiring if you ever add separate "Navigate" links ---------- */
-(function wireNavigateButtons(){
+/* ---------- (Optional) Delegate to any existing "Navigate" buttons ---------- */
+(function wireExistingNavigateButtons(){
   const idRx = /\bM\d{3,5}\b/i, up = s => String(s||'').toUpperCase();
   const root = document.getElementById('sidebar-content');
   if (!root) return;
@@ -813,7 +827,7 @@ function toggleFollow(G){
 })();
   </script>
 
-  <!-- Google Maps JS API (YOUR KEY IS EMBEDDED HERE) -->
-  <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY&loading=async"></script>
+  <!-- Google Maps JS API (uses your Maps JS key). Keep both APIs enabled in Google Cloud. -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY&v=weekly"></script>
 </body>
 </html>
