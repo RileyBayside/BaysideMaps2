@@ -55,7 +55,7 @@
 
     #sidebar #sidebar-content{ padding:8px 12px 16px; }
 
-    /* Progress bar for photo upload (sidebar-friendly) */
+    /* Progress bar for photo upload */
     #sidebar #photoProg{
       display:none;
       width: calc(100% - 24px);
@@ -77,7 +77,7 @@
     }
     #sidebar-content details[open] > summary{ background:#eef2f7; }
 
-    /* Rows/items inside groups (support many structures) */
+    /* Rows/items inside groups */
     #sidebar-content li,
     #sidebar-content .list-item,
     #sidebar-content .sidebar-row,
@@ -100,15 +100,19 @@
       background:#fff; color:#111827; padding:6px 10px; font-weight:800; cursor:pointer;
       margin-top:6px;
     }
-    .bs-done-btn.done{
-      background:#dcfce7; border-color:#bbf7d0; color:#065f46;
-    }
+    .bs-done-btn.done{ background:#dcfce7; border-color:#bbf7d0; color:#065f46; }
 
-    /* Auto-inserted Navigate button */
+    /* “Navigate” button */
     .bs-nav-btn{
       appearance:none; border-radius:10px; border:1px solid #e2e8f0;
       background:#1f2937; color:#fff; padding:6px 10px; font-weight:800;
       cursor:pointer; margin-top:6px; margin-right:6px;
+    }
+
+    /* Banner above filtered list */
+    .assign-banner{
+      padding:8px 10px; margin:6px 0; border:1px solid #e2e8f0; background:#fff8f8;
+      color:#7f1d1d; border-radius:8px; font-weight:700;
     }
 
     /* In-page Google navigation panel */
@@ -120,13 +124,12 @@
     }
     #gnavPanel .bar{
       display:flex; align-items:center; justify-content:space-between;
-      gap:8px; padding:8px 10px; border-bottom:1px solid #e5e7eb;
+      padding:8px 10px; border-bottom:1px solid #e5e7eb;
       font:600 14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
     }
     #gnavPanel .bar button{
-      background:#111827; color:#fff; border:0; border-radius:8px; padding:6px 8px;
+      background:#111827; color:#fff; border:0; border-radius:8px; padding:6px 8px; margin-left:6px;
     }
-    #gnavPanel .bar button#gnavCloseBtn{ background:#b91c1c; }
     #gnavSteps{ height:38%; overflow:auto; padding:8px 10px; font: 13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
   </style>
 </head>
@@ -183,10 +186,10 @@
   <div id="gnavPanel">
     <div class="bar">
       <span>Navigation</span>
-      <div style="display:flex; gap:6px;">
+      <div>
         <button id="gnavFollowBtn" type="button">Follow me</button>
         <button id="gnavOpenBtn"   type="button">Open in Google Maps</button>
-        <button id="gnavCloseBtn"  type="button">Close</button>
+        <button id="gnavCloseBtn"  type="button" style="background:#b91c1c">Close</button>
       </div>
     </div>
     <div id="gnavMap" style="width:100%; height:62%;"></div>
@@ -260,7 +263,7 @@
         root.querySelectorAll('details').forEach(d => {
           const any = [...d.querySelectorAll('li, .list-item, .sidebar-row, .item')]
             .some(el => el.style.display !== 'none');
-          d.style.display = any ? '' : 'none';
+          d.display = any ? '' : 'none';
           if (any) d.open = true;
         });
       }
@@ -346,8 +349,6 @@
     async function writeProgress(siteId, status, note){
       const uid = auth.currentUser?.uid || null;
       const taskId = await ensureTaskId();
-
-      // LOG (operators always allowed by your rules)
       await db.collection('work_logs').add({
         assignmentId: taskId || null,
         siteId, status,
@@ -358,9 +359,8 @@
     }
 
     // ---------- injection & sync ----------
-    const siteButtons = new Map(); // siteId -> "Mark done" button
-    const siteInputs  = new Map(); // siteId -> notes input
-    const siteNavButtons = new Map(); // siteId -> "Navigate" button
+    const siteButtons = new Map();     // siteId -> "Mark done"
+    const siteNavBtns = new Map();     // siteId -> "Navigate"
 
     // optimistic state (keep UI sticky until listeners refresh)
     const optimistic = new Map();  // siteId -> {status, t}
@@ -388,28 +388,42 @@
         const sid = findSiteIdForNotes(input);
         if (!sid) return;
 
-        siteInputs.set(sid, input);
+        // Create/attach NAVIGATE button (left)
+        let nav = siteNavBtns.get(sid);
+        if (!nav || nav.dataset.siteId !== sid){
+          if (nav && nav.parentElement) nav.parentElement.removeChild(nav);
+          nav = document.createElement('button');
+          nav.type='button';
+          nav.className='bs-nav-btn';
+          nav.dataset.siteId = sid;
+          nav.textContent='Navigate';
+          input.insertAdjacentElement('afterend', nav);
+          siteNavBtns.set(sid, nav);
 
-        // 1) Ensure "Mark done" button exists
+          nav.addEventListener('click', (e)=>{
+            e.preventDefault(); e.stopPropagation();
+            startInPageNav(sid);
+          });
+        }
+
+        // Create/attach MARK DONE button (right)
         let btn = siteButtons.get(sid);
         if (!btn || btn.dataset.siteId !== sid){
-          if (btn && btn.parentElement) btn.parentElement.remove();
+          if (btn && btn.parentElement) btn.parentElement.removeChild(btn);
 
           btn = document.createElement('button');
           btn.type='button';
           btn.className='bs-done-btn';
           btn.dataset.siteId = sid;
           btn.textContent='Mark done';
+          nav.insertAdjacentElement('afterend', btn);
           siteButtons.set(sid, btn);
 
           btn.addEventListener('click', async (e)=>{
             e.preventDefault(); e.stopPropagation();
             const willBeDone = !btn.classList.contains('done');
-
-            // optimistic state + UI first
             optSet(sid, willBeDone ? 'completed' : 'in_progress');
             setBtnUI(btn, willBeDone);
-
             try{
               await writeProgress(sid, willBeDone ? 'completed' : 'in_progress', input.value||'');
             }catch(err){
@@ -419,7 +433,6 @@
             }
           });
 
-          // Keep notes in sync
           const saveNote = async () => {
             const opt = optGet(sid);
             const eff = opt ? opt.status : effectiveFor(sid).status || (btn.classList.contains('done') ? 'completed' : 'in_progress');
@@ -429,45 +442,12 @@
           input.addEventListener('blur',   saveNote);
         }
 
-        // 2) Ensure "Navigate" button exists and is placed before "Mark done"
-        let nav = siteNavButtons.get(sid);
-        if (!nav || nav.dataset.siteId !== sid){
-          if (nav && nav.parentElement) nav.parentElement.remove();
-
-          nav = document.createElement('button');
-          nav.type='button';
-          nav.className='bs-nav-btn';
-          nav.dataset.siteId = sid;
-          nav.textContent='Navigate';
-
-          // Place nav first, then mark-done after it
-          input.insertAdjacentElement('afterend', nav);
-          nav.insertAdjacentElement('afterend', btn);
-
-          siteNavButtons.set(sid, nav);
-
-          nav.addEventListener('click', (e)=>{
-            e.preventDefault(); e.stopPropagation();
-            if (typeof startInPageNav === 'function') {
-              startInPageNav(sid);
-            } else {
-              alert('Navigation module not ready yet.');
-            }
-          });
-        } else {
-          // Ensure order nav -> mark-done (in case DOM moved)
-          if (btn.previousElementSibling !== nav){
-            input.insertAdjacentElement('afterend', nav);
-            nav.insertAdjacentElement('afterend', btn);
-          }
-        }
-
-        // reflect EFFECTIVE state -> UI (optimistic overrides freshest logs while fresh)
+        // reflect EFFECTIVE state -> UI
         const eff = effectiveFor(sid);
         const opt  = optGet(sid);
         const status = (opt?.status || eff.status || '').toLowerCase();
         const isDone = status === 'completed';
-        setBtnUI(btn, isDone);
+        setBtnUI(siteButtons.get(sid), isDone);
 
         if (typeof eff.note === 'string' && document.activeElement !== input && input.value !== eff.note) {
           input.value = eff.note;
@@ -477,7 +457,6 @@
       });
     }
 
-    // run once, then keep tidy for a minute (in case the sidebar renders incrementally)
     const iv = setInterval(()=>requestAnimationFrame(injectButtons), 1000);
     setTimeout(()=>clearInterval(iv), 60000);
     requestAnimationFrame(injectButtons);
@@ -496,12 +475,11 @@
       }
     });
 
-    // live listeners for work_logs (read only current operator's logs to satisfy rules)
+    // live listeners for work_logs (read only current operator's logs)
     firebase.auth().onAuthStateChanged(async (u)=>{
       if (!u) return;
       const uid = u.uid;
 
-      // Which sites appear (for live filtering of logs)
       const params = new URLSearchParams(location.search);
       let ids = (params.get('focus')||'')
         .split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
@@ -669,165 +647,185 @@
   })();
   </script>
 
-  <!-- ========= In-page Google Maps directions + Follow-me ========= -->
+  <!-- ========= Registry of Leaflet layers -> site coordinates ========= -->
   <script>
-/* Your keys (for clarity). The script tag below uses the Maps JS key. */
-const GOOGLE_MAPS_JS_KEY = "AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY";
-const ROUTES_API_KEY     = "AIzaSyAN646HVsSdNnwQXHiOrhyb-Ekc9l-wTIo"; // keep enabled on same project
-
-/* ---------- Registry: capture site coordinates from Leaflet layers ---------- */
-window.BS_SITES = {}; // { M0123: {id, layer, lat, lng} }
-
-window.BS_registerSite = function(id, layer){
-  if (!id || !layer) return;
-  id = String(id).toUpperCase();
-  let ll = null;
-  try {
-    if (typeof layer.getLatLng === 'function') ll = layer.getLatLng();
-    else if (typeof layer.getBounds === 'function') ll = layer.getBounds().getCenter();
-  } catch(_) {}
-  if (!ll) return;
-  window.BS_SITES[id] = { id, layer, lat: ll.lat, lng: ll.lng };
-};
-
-// Discover the Leaflet map and auto-register layers as they appear.
-(function watchLeafletLayers(){
-  function getMap(){
-    const c = [window.BS_MAP, window.__BS_map, window.map, window.leafletMap];
-    return c.find(m => m && typeof m.on === 'function' && typeof m.getBounds === 'function') || null;
-  }
-  const map = getMap();
-  if (!map) return setTimeout(watchLeafletLayers, 300);
-
-  const idRx = /\bM\d{3,5}\b/i;
-  function idFromLayer(layer){
-    const guess = (layer?.options?.siteId) ||
-                  (layer?.options?.title) ||
-                  (layer?.getTooltip && layer.getTooltip()?.getContent()) ||
-                  (layer?._icon && layer._icon.textContent) || '';
-    const m = String(guess).toUpperCase().match(idRx);
-    return m ? m[0] : null;
-  }
-  function maybeRegister(layer){
-    const id = idFromLayer(layer);
-    if (id) window.BS_registerSite(id, layer);
-  }
-
-  // Register existing layers
-  for (const k in map._layers) maybeRegister(map._layers[k]);
-  // Register future layers
-  map.on('layeradd', (e)=> maybeRegister(e.layer));
-})();
-
-/* ---------- Google Maps directions panel + follow-me ---------- */
-function initGNav(){
-  if (!window.google || !google.maps) {
-    alert('Google Maps not loaded yet.');
-    return null;
-  }
-  const panel   = document.getElementById('gnavPanel');
-  const mapEl   = document.getElementById('gnavMap');
-  const stepsEl = document.getElementById('gnavSteps');
-
-  const gmap = new google.maps.Map(mapEl, { zoom: 14, disableDefaultUI: false });
-  const dirSvc = new google.maps.DirectionsService();
-  const dirRend = new google.maps.DirectionsRenderer({ map: gmap, suppressMarkers: false });
-  const state = { panel, map: gmap, dirSvc, dirRend, watchId: null, meMarker: null, dest: null, stepsEl };
-
-  document.getElementById('gnavCloseBtn').onclick = () => {
-    panel.style.display = 'none';
-    if (state.watchId) { navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
-    document.getElementById('gnavFollowBtn').textContent = 'Follow me';
+  window.BS_SITES = {}; // { M0123: {id, layer, lat, lng} }
+  window.BS_registerSite = function(id, layer){
+    if (!id || !layer) return;
+    id = String(id).toUpperCase();
+    let ll = null;
+    try {
+      if (typeof layer.getLatLng === 'function') ll = layer.getLatLng();
+      else if (typeof layer.getBounds === 'function') ll = layer.getBounds().getCenter();
+    } catch(_) {}
+    if (!ll) return;
+    window.BS_SITES[id] = { id, layer, lat: ll.lat, lng: ll.lng };
   };
-  document.getElementById('gnavFollowBtn').onclick = () => toggleFollow(state);
-  document.getElementById('gnavOpenBtn').onclick   = () => {
-    if (!state.dest) return;
-    const {lat, lng} = state.dest;
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
-  };
-  return state;
-}
 
-async function startInPageNav(siteId){
-  siteId = String(siteId||'').toUpperCase();
-  const s = window.BS_SITES[siteId];
-  if (!s) { alert(`Sorry, couldn't find coordinates for ${siteId} yet. Try zooming until its marker appears, then retry.`); return; }
+  (function watchLeafletLayers(){
+    function getMap(){
+      const c = [window.BS_MAP, window.__BS_map, window.map, window.leafletMap];
+      return c.find(m => m && typeof m.on === 'function' && typeof m.getBounds === 'function') || null;
+    }
+    const map = getMap();
+    if (!map) return setTimeout(watchLeafletLayers, 300);
 
-  const dest = { lat: s.lat, lng: s.lng };
-  if (!window.__GNAV) window.__GNAV = initGNav();
-  const G = window.__GNAV; if (!G) return;
-
-  G.dest = dest;
-  G.panel.style.display = 'block';
-
-  let origin;
-  try {
-    const pos = await new Promise((res, rej)=> navigator.geolocation.getCurrentPosition(
-      p => res(p.coords),
-      e => rej(e),
-      { enableHighAccuracy:true, timeout:12000, maximumAge:10000 }
-    ));
-    origin = { lat: pos.latitude, lng: pos.longitude };
-  } catch {
-    origin = G.map.getCenter()?.toJSON?.() || dest;
-  }
-
-  G.map.setCenter(dest);
-  routeOnce(G, origin, dest);
-}
-
-function routeOnce(G, origin, dest){
-  G.dirSvc.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING })
-    .then(r => {
-      G.dirRend.setDirections(r);
-      renderSteps(G.stepsEl, r.routes[0].legs?.[0]?.steps || []);
-    })
-    .catch(err => alert('Directions failed: ' + (err.message || err)));
-}
-
-function renderSteps(el, steps){
-  if (!el) return;
-  if (!steps.length){ el.textContent = 'No steps.'; return; }
-  el.innerHTML = steps.map(s => `<div style="padding:4px 0;border-top:1px solid #eef2f7">${s.instructions} — ${Math.round(s.distance.value/100)/10} km</div>`).join('');
-}
-
-function toggleFollow(G){
-  if (G.watchId){
-    navigator.geolocation.clearWatch(G.watchId);
-    G.watchId = null;
-    document.getElementById('gnavFollowBtn').textContent = 'Follow me';
-    return;
-  }
-  document.getElementById('gnavFollowBtn').textContent = 'Stop follow';
-  G.watchId = navigator.geolocation.watchPosition(pos => {
-    const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    if (G.meMarker) G.meMarker.setMap(null);
-    G.meMarker = new google.maps.Marker({ position: me, map: G.map, title: 'You' });
-    G.map.panTo(me);
-    if (G.dest) routeOnce(G, me, G.dest);
-  }, console.warn, { enableHighAccuracy:true, maximumAge:2000 });
-}
-
-/* ---------- (Optional) Delegate to any existing "Navigate" buttons ---------- */
-(function wireExistingNavigateButtons(){
-  const idRx = /\bM\d{3,5}\b/i, up = s => String(s||'').toUpperCase();
-  const root = document.getElementById('sidebar-content');
-  if (!root) return;
-
-  root.addEventListener('click', (e) => {
-    const btn = e.target.closest('button, a');
-    if (!btn) return;
-    if (!/^navigate$/i.test(btn.textContent.trim())) return;
-
-    const row = btn.closest('li, .list-item, .sidebar-row, .item, div');
-    const m = (row?.textContent || '').toUpperCase().match(idRx);
-    if (!m) { alert('Could not determine site ID on that row.'); return; }
-    startInPageNav(up(m[0]));
-  });
-})();
+    const idRx = /\bM\d{3,5}\b/i;
+    function idFromLayer(layer){
+      const guess = (layer?.options?.siteId) ||
+                    (layer?.options?.title) ||
+                    (layer?.getTooltip && layer.getTooltip()?.getContent()) ||
+                    (layer?._icon && layer._icon.textContent) || '';
+      const m = String(guess).toUpperCase().match(idRx);
+      return m ? m[0] : null;
+    }
+    function maybeRegister(layer){
+      const id = idFromLayer(layer);
+      if (id) window.BS_registerSite(id, layer);
+    }
+    for (const k in map._layers) maybeRegister(map._layers[k]);
+    map.on('layeradd', (e)=> maybeRegister(e.layer));
+  })();
   </script>
 
-  <!-- Google Maps JS API (uses your Maps JS key). Keep both APIs enabled in Google Cloud. -->
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY&v=weekly"></script>
+  <!-- ========= In-page Google Maps directions (Routes API) + Follow-me ========= -->
+  <script>
+  // NOTE: Requires the single page key to have BOTH "Maps JavaScript API" and "Routes API" enabled.
+
+  async function initGNav(){
+    if (!window.google || !google.maps?.importLibrary) {
+      alert('Google Maps not loaded yet.');
+      return null;
+    }
+    // Load modules
+    const [{Map, Marker, Polyline}, {Route}] = await Promise.all([
+      google.maps.importLibrary('maps'),
+      google.maps.importLibrary('routes'),
+    ]);
+
+    const panel   = document.getElementById('gnavPanel');
+    const mapEl   = document.getElementById('gnavMap');
+    const stepsEl = document.getElementById('gnavSteps');
+
+    const gmap = new Map(mapEl, { zoom: 14, disableDefaultUI: false });
+
+    const state = { panel, map: gmap, Route, Marker, Polyline, watchId: null, meMarker: null, dest: null, stepsEl, poly: null };
+
+    document.getElementById('gnavCloseBtn').onclick = () => {
+      panel.style.display = 'none';
+      if (state.watchId) { navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
+      document.getElementById('gnavFollowBtn').textContent = 'Follow me';
+    };
+    document.getElementById('gnavFollowBtn').onclick = () => toggleFollow(state);
+    document.getElementById('gnavOpenBtn').onclick   = () => {
+      if (!state.dest) return;
+      const {lat, lng} = state.dest;
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
+    };
+    return state;
+  }
+
+  async function startInPageNav(siteId){
+    siteId = String(siteId||'').toUpperCase();
+    const s = window.BS_SITES[siteId];
+    if (!s) { alert(`Sorry, couldn't find coordinates for ${siteId} yet. Try zooming until its marker appears, then retry.`); return; }
+
+    const dest = { lat: s.lat, lng: s.lng };
+    if (!window.__GNAV) window.__GNAV = await initGNav();
+    const G = window.__GNAV; if (!G) return;
+
+    G.dest = dest;
+    G.panel.style.display = 'block';
+    G.map.setCenter(dest);
+
+    let origin;
+    try {
+      const pos = await new Promise((res, rej)=> navigator.geolocation.getCurrentPosition(
+        p => res(p.coords),
+        e => rej(e),
+        { enableHighAccuracy:true, timeout:12000, maximumAge:10000 }
+      ));
+      origin = { lat: pos.latitude, lng: pos.longitude };
+    } catch {
+      origin = G.map.getCenter()?.toJSON?.() || dest;
+    }
+
+    await routeOnce(G, origin, dest);
+  }
+
+  async function routeOnce(G, origin, dest){
+    try{
+      // Minimal fields to draw a route & show summary
+      const req = {
+        origin,
+        destination: dest,
+        travelMode: 'DRIVING',
+        fields: ['path','distanceMeters','duration']
+      };
+      const {routes} = await G.Route.computeRoutes(req);
+      const r = routes?.[0];
+      if (!r) throw new Error('No route returned');
+
+      if (G.poly) G.poly.setMap(null);
+      G.poly = new G.Polyline({ path: r.path, map: G.map });
+
+      // Simple summary in the steps panel
+      const km = (r.distanceMeters ?? 0) / 1000;
+      G.stepsEl.textContent = `${km.toFixed(1)} km • ${formatDuration(r.duration)}`;
+    }catch(err){
+      alert('Directions failed: ' + (err?.message || err));
+      console.error(err);
+    }
+  }
+
+  function formatDuration(iso){
+    if (!iso) return '';
+    const m = /PT(?:(\d+)H)?(?:(\d+)M)?/.exec(iso);
+    const h = +m?.[1]||0, min=(+m?.[2]||0);
+    return h?`${h} hr ${min} min`:`${min} min`;
+  }
+
+  function toggleFollow(G){
+    if (G.watchId){
+      navigator.geolocation.clearWatch(G.watchId);
+      G.watchId = null;
+      document.getElementById('gnavFollowBtn').textContent = 'Follow me';
+      return;
+    }
+    document.getElementById('gnavFollowBtn').textContent = 'Stop follow';
+    G.watchId = navigator.geolocation.watchPosition(async pos => {
+      const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (G.meMarker) G.meMarker.setMap(null);
+      G.meMarker = new G.Marker({ position: me, map: G.map, title: 'You' });
+      G.map.panTo(me);
+      if (G.dest) await routeOnce(G, me, G.dest);
+    }, console.warn, { enableHighAccuracy:true, maximumAge:2000 });
+  }
+
+  // Also allow clicking any "Navigate" button in the sidebar (defensive)
+  (function wireNavigateButtons(){
+    const idRx = /\bM\d{3,5}\b/i, up = s => String(s||'').toUpperCase();
+    const root = document.getElementById('sidebar-content');
+    if (!root) return;
+    root.addEventListener('click', (e) => {
+      const btn = e.target.closest('button, a');
+      if (!btn) return;
+      if (!/^navigate$/i.test(btn.textContent.trim())) return;
+      const row = btn.closest('li, .list-item, .sidebar-row, .item, div');
+      const m = (row?.textContent || '').toUpperCase().match(idRx);
+      if (!m) { alert('Could not determine site ID on that row.'); return; }
+      startInPageNav(up(m[0]));
+    });
+  })();
+  </script>
+
+  <!-- Google Maps JS inline loader (ONE key only; must have Maps JS API + Routes API enabled) -->
+  <script>
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,
+    u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);
+    a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));
+    d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})
+    ({key:"AIzaSyB4-d7KT8R6axtZBhXj5ufjsS7FjKlEVwY", v:"weekly"});  /* <- your key here */
+  </script>
 </body>
 </html>
